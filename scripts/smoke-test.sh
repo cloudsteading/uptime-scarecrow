@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# End-to-end smoke test for local Scarecrow.
-# Assumes both `npm run dev` (port 4321 by default — override with APP_PORT)
-# and `npm run dev:scheduler` (port 8788) are running in other terminals.
+# End-to-end smoke test for local Uptime Scarecrow.
+# Assumes `npm run dev` (which runs both the app and scheduler) is up.
+# Override APP_PORT if Astro's auto-fallback picked a different port.
 #
-# Usage: ./scripts/smoke-test.sh   (or)   APP_PORT=4322 ./scripts/smoke-test.sh
+# Usage: ./scripts/smoke-test.sh   (or)   APP_PORT=4323 ./scripts/smoke-test.sh
 set -euo pipefail
 
-APP="http://localhost:${APP_PORT:-4321}"
+APP="http://localhost:${APP_PORT:-4322}"
 SCH="http://localhost:8788"
 PASS=0
 FAIL=0

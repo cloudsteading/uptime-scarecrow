@@ -1,20 +1,28 @@
 {
-  "name": "cs-uptime-monitor",
+  "name": "uptime-scarecrow",
+  "description": "Self-hosted uptime monitoring on Cloudflare — by Cloudsteading.",
   "type": "module",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://github.com/cloudsteading/uptime-scarecrow",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cloudsteading/uptime-scarecrow.git"
+  },
+  "license": "MIT",
   "engines": {
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "astro dev",
+    "dev": "concurrently --names APP,SCHED --prefix-colors cyan,magenta --kill-others-on-fail \"npm:dev:app\" \"npm:dev:scheduler\"",
+    "dev:app": "astro dev --port 4322",
     "dev:scheduler": "wrangler dev -c wrangler.scheduler.jsonc --port 8788 --test-scheduled",
     "build": "astro build",
     "preview": "wrangler dev",
     "astro": "astro",
-    "db:create": "wrangler d1 create cs-uptime-db",
-    "db:migrate:local": "wrangler d1 migrations apply cs-uptime-db --local",
-    "db:migrate:remote": "wrangler d1 migrations apply cs-uptime-db --remote",
+    "db:create": "wrangler d1 create uptime-scarecrow-db",
+    "db:migrate:local": "wrangler d1 migrations apply uptime-scarecrow-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply uptime-scarecrow-db --remote",
     "tick:arm": "curl -fsS 'http://localhost:8788/__scheduled?cron=*+*+*+*+*'",
     "tick:rollup": "curl -fsS 'http://localhost:8788/__scheduled?cron=5+0+*+*+*'",
     "tick:prune": "curl -fsS 'http://localhost:8788/__scheduled?cron=15+0+*+*+*'",
@@ -33,6 +41,7 @@
     "@cloudflare/workers-types": "^4.20260420.1",
     "@fontsource/inter": "^5.2.8",
     "@fontsource/jetbrains-mono": "^5.2.8",
+    "concurrently": "^9.2.1",
     "typescript": "^5.9.3",
     "wrangler": "^4.83.0"
   },

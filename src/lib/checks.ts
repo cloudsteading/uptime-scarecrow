@@ -109,7 +109,7 @@ async function safeFetch(url: string, opts: SafeFetchOptions): Promise<SafeFetch
       res = await fetch(current, {
         method: opts.method,
         headers: {
-          'User-Agent': 'cs-uptime-monitor/0.1 (+https://cloudsteading.com/uptime)',
+          'User-Agent': 'uptime-scarecrow/0.1 (+https://github.com/cloudsteading/uptime-scarecrow)',
           ...(opts.headers ?? {}),
         },
         body: hop === 0 ? opts.body : undefined,

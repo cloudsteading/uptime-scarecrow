@@ -16,7 +16,7 @@ const httpCfg = monitor.type === 'http' ? (monitor.parsed_config as HttpMonitorC
 const hbCfg = monitor.type === 'heartbeat' ? (monitor.parsed_config as HeartbeatMonitorConfig) : null;
 const usingCron = !!(hbCfg?.cron_expression || httpCfg?.cron_expression);
 ---
-<Layout title={`Edit ${monitor.name} — Scarecrow`}>
+<Layout title={`Edit ${monitor.name} — Uptime Scarecrow`}>
   <div class="mx-auto max-w-3xl px-6 py-8">
     <a href={`/monitor/${id}`} class="text-ink-500 text-sm hover:text-ink-300">← {monitor.name}</a>
     <h1 class="text-2xl font-bold tracking-tight mt-2">

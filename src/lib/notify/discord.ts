@@ -8,9 +8,9 @@ function buildPayload(n: Notification) {
   const link = n.app_base_url + (n.monitor_id ? `/monitor/${n.monitor_id}` : '');
   if (n.kind === 'test') {
     return {
-      username: 'scarecrow',
+      username: 'uptime-scarecrow',
       embeds: [{
-        title: 'scarecrow test',
+        title: 'uptime-scarecrow test',
         description: n.test_message ?? 'If you got this, the Discord channel is wired up correctly.',
         url: link, color: COLOR_INFO,
       }],

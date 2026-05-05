@@ -1,13 +1,13 @@
-# Scarecrow (cs-uptime-monitor)
+# Uptime Scarecrow
 
-Free, multi-tenant uptime monitoring built entirely on Cloudflare. Watches HTTP endpoints and cron heartbeats; sends alerts via email / Slack / Discord / webhook / PagerDuty / Telegram. Repo: `cloudsteading/scarecrow-uptime`.
+Self-hosted uptime monitoring built entirely on Cloudflare, by Cloudsteading. Watches HTTP endpoints and cron heartbeats; sends alerts via email / Slack / Discord / webhook / PagerDuty / Telegram. Repo: `cloudsteading/uptime-scarecrow`. (Local dir is still `cs-uptime-monitor` for historical reasons; package + workers + DB are all `uptime-scarecrow*`.)
 
 ## Architecture
 
 Two Workers, deployed independently:
 
-- **`cs-uptime-app`** — Astro (server output) on Workers. Serves the marketing site, dashboard (`/app`), public status pages. Auth via Cloudflare Access.
-- **`cs-uptime-scheduler`** — cron Worker (`* * * * *`), queue consumer, hosts the Durable Objects. Owns all check execution and notification fan-out.
+- **`uptime-scarecrow-app`** — Astro (server output) on Workers. Serves the marketing site, dashboard, public status pages. Auth via Cloudflare Access.
+- **`uptime-scarecrow-scheduler`** — cron Worker (`* * * * *`), queue consumer, hosts the Durable Objects. Owns all check execution and notification fan-out.
 
 Bindings (see `wrangler.jsonc` / `wrangler.scheduler.jsonc`):
 

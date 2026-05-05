@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "cs-uptime-scheduler",
+  "name": "uptime-scarecrow-scheduler",
   "account_id": "568ac4421f76a5632827450f5617a9e8",
   "main": "src/scheduler/index.ts",
   "compatibility_date": "2026-04-01",
@@ -9,7 +9,7 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "cs-uptime-db",
+      "database_name": "uptime-scarecrow-db",
       "database_id": "202932c5-1fd8-438f-b7ec-6f73e3b3c547",
       "migrations_dir": "./db/migrations"
     }
@@ -26,11 +26,11 @@
   "queues": {
     "consumers": [
       {
-        "queue": "cs-uptime-notifications",
+        "queue": "uptime-scarecrow-notifications",
         "max_batch_size": 10,
         "max_batch_timeout": 5,
         "max_retries": 3,
-        "dead_letter_queue": "cs-uptime-notifications-dlq"
+        "dead_letter_queue": "uptime-scarecrow-notifications-dlq"
       }
     ]
   },
@@ -62,7 +62,7 @@
   },
 
   "vars": {
-    "APP_NAME": "cs-uptime-monitor",
+    "APP_NAME": "uptime-scarecrow",
     "APP_VERSION": "0.1.0"
   }
 }

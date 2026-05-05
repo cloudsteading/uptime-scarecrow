@@ -1,0 +1,70 @@
+---
+interface Props {
+  size?: number;
+  class?: string;
+}
+const { size = 28, class: className = '' } = Astro.props;
+---
+<svg
+  width={size}
+  height={size}
+  viewBox="0 0 32 32"
+  xmlns="http://www.w3.org/2000/svg"
+  fill="none"
+  class={className}
+  role="img"
+  aria-label="Scarecrow"
+>
+  <!-- floppy pointed hat -->
+  <path d="M16 2.5 L10.5 9 L21.5 9 Z" fill="var(--color-accent-500)" />
+  <!-- hat brim, slightly oversized -->
+  <path d="M7 9 L25 9 L24 10.4 L8 10.4 Z" fill="var(--color-accent-600)" />
+  <!-- hat band stitch -->
+  <line x1="11" y1="8.6" x2="21" y2="8.6" stroke="var(--color-ink-950)" stroke-width="0.5" stroke-dasharray="0.5 0.5" stroke-linecap="round" />
+
+  <!-- burlap head -->
+  <circle cx="16" cy="13.6" r="2.9" fill="var(--color-ink-100)" />
+  <!-- head seam -->
+  <path d="M13.3 13.6 L18.7 13.6" stroke="var(--color-ink-500)" stroke-width="0.35" stroke-dasharray="0.4 0.4" stroke-linecap="round" />
+
+  <!-- X eyes -->
+  <g stroke="var(--color-ink-950)" stroke-width="0.75" stroke-linecap="round">
+    <line x1="14.2" y1="12.4" x2="15.1" y2="13.3" />
+    <line x1="15.1" y1="12.4" x2="14.2" y2="13.3" />
+    <line x1="16.9" y1="12.4" x2="17.8" y2="13.3" />
+    <line x1="17.8" y1="12.4" x2="16.9" y2="13.3" />
+  </g>
+  <!-- stitched mouth -->
+  <line x1="14.7" y1="14.7" x2="17.3" y2="14.7" stroke="var(--color-ink-950)" stroke-width="0.5" stroke-dasharray="0.45 0.45" stroke-linecap="round" />
+
+  <!-- straw tufts at neck -->
+  <g stroke="var(--color-accent-400)" stroke-width="0.7" stroke-linecap="round">
+    <line x1="14.4" y1="16.3" x2="13.3" y2="17.5" />
+    <line x1="17.6" y1="16.3" x2="18.7" y2="17.5" />
+    <line x1="16" y1="16.5" x2="16" y2="17.6" />
+  </g>
+
+  <!-- cross post body -->
+  <line x1="16" y1="17.5" x2="16" y2="29" stroke="var(--color-ink-100)" stroke-width="1.7" stroke-linecap="round" />
+  <line x1="7.5" y1="19.5" x2="24.5" y2="19.5" stroke="var(--color-ink-100)" stroke-width="1.7" stroke-linecap="round" />
+
+  <!-- straw bursting from sleeves -->
+  <g stroke="var(--color-accent-500)" stroke-width="0.75" stroke-linecap="round">
+    <line x1="6" y1="17.8" x2="8.2" y2="19.5" />
+    <line x1="5.5" y1="19.8" x2="8.2" y2="19.5" />
+    <line x1="6" y1="21.3" x2="8.2" y2="19.5" />
+    <line x1="26" y1="17.8" x2="23.8" y2="19.5" />
+    <line x1="26.5" y1="19.8" x2="23.8" y2="19.5" />
+    <line x1="26" y1="21.3" x2="23.8" y2="19.5" />
+  </g>
+
+  <!-- patched chest -->
+  <path d="M14.4 22.2 L17.6 22.2 L17.6 24.4 L14.4 24.4 Z" stroke="var(--color-accent-500)" stroke-width="0.4" stroke-dasharray="0.5 0.5" />
+
+  <!-- frayed boots / straw at base -->
+  <g stroke="var(--color-accent-500)" stroke-width="0.7" stroke-linecap="round">
+    <line x1="14.5" y1="29" x2="13.5" y2="30" />
+    <line x1="16" y1="29.2" x2="16" y2="30.4" />
+    <line x1="17.5" y1="29" x2="18.5" y2="30" />
+  </g>
+</svg>

@@ -102,7 +102,7 @@ function statusPill(s: string) {
   return { cls: 'bg-ink-800 text-ink-400 border-ink-700', label: s };
 }
 ---
-<Layout title={`Incident #${incident.id} — ${incident.monitor_name} — Scarecrow`}>
+<Layout title={`Incident #${incident.id} — ${incident.monitor_name} — Uptime Scarecrow`}>
   <div class="mx-auto max-w-5xl px-6 py-8">
     <a href={`/monitor/${incident.monitor_id}`} class="text-ink-500 text-sm hover:text-ink-300">← {incident.monitor_name}</a>
     <div class="mt-2 flex items-start justify-between flex-wrap gap-4">

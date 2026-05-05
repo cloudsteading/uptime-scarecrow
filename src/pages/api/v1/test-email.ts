@@ -21,9 +21,9 @@ export const POST: APIRoute = async (ctx) => {
       await env.SEND_EMAIL.send({
         to,
         from: env.EMAIL_FROM,
-        subject: '[Scarecrow] Test alert',
-        text: `This is a test alert from Scarecrow. If you received this, alerting is wired up correctly.\n\nFrom ${env.APP_BASE_URL ?? '(no APP_BASE_URL set)'}\n`,
-        html: `<p>This is a test alert from <strong>Scarecrow</strong>. If you received this, alerting is wired up correctly.</p><p style="color:#64748b">From ${env.APP_BASE_URL ?? '(no APP_BASE_URL set)'}</p>`,
+        subject: '[Uptime Scarecrow] Test alert',
+        text: `This is a test alert from Uptime Scarecrow. If you received this, alerting is wired up correctly.\n\nFrom ${env.APP_BASE_URL ?? '(no APP_BASE_URL set)'}\n`,
+        html: `<p>This is a test alert from <strong>Uptime Scarecrow</strong>. If you received this, alerting is wired up correctly.</p><p style="color:#64748b">From ${env.APP_BASE_URL ?? '(no APP_BASE_URL set)'}</p>`,
       });
       flash = `Test email sent to ${to} via Cloudflare Email Service`;
     } catch (err) {

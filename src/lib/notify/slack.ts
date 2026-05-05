@@ -4,9 +4,9 @@ function buildPayload(n: Notification) {
   const link = n.app_base_url + (n.monitor_id ? `/monitor/${n.monitor_id}` : '');
   if (n.kind === 'test') {
     return {
-      text: `:wave: scarecrow test — ${n.test_message ?? 'channel works'}`,
+      text: `:wave: uptime-scarecrow test — ${n.test_message ?? 'channel works'}`,
       blocks: [
-        { type: 'section', text: { type: 'mrkdwn', text: `:wave: *scarecrow test*\n${n.test_message ?? 'If you got this, the Slack channel is wired up correctly.'}\n<${link}|Open dashboard>` } },
+        { type: 'section', text: { type: 'mrkdwn', text: `:wave: *uptime-scarecrow test*\n${n.test_message ?? 'If you got this, the Slack channel is wired up correctly.'}\n<${link}|Open dashboard>` } },
       ],
     };
   }

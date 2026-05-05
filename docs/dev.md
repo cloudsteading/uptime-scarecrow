@@ -10,26 +10,27 @@ DEV_NO_AUTH=1
 
 This var must NEVER be set in deployed environments — it grants admin to every visitor. Production deploys set `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` instead (via `wrangler secret put`), and any deploy missing those secrets without `DEV_NO_AUTH` returns 503.
 
-## Two Workers, two `wrangler dev` sessions
+## Two Workers, one command
 
-Scarecrow ships as two Workers in one repo:
+Uptime Scarecrow ships as two Workers in one repo:
 
-- **`cs-uptime-app`** (`wrangler.jsonc`) — Astro UI + API routes + heartbeat ingest.
-- **`cs-uptime-scheduler`** (`wrangler.scheduler.jsonc`) — Durable Object classes (`MonitorScheduler`, `HeartbeatTracker`), the per-minute cron, the rollup/prune crons, the notifications queue consumer.
+- **`uptime-scarecrow-app`** (`wrangler.jsonc`) — Astro UI + API routes + heartbeat ingest.
+- **`uptime-scarecrow-scheduler`** (`wrangler.scheduler.jsonc`) — Durable Object classes (`MonitorScheduler`, `HeartbeatTracker`), the per-minute cron, the rollup/prune crons, the notifications queue consumer.
 
-The app Worker has DO bindings declared with `script_name: "cs-uptime-scheduler"` — i.e. it talks to DO classes that live in the *other* Worker. Locally that means **both Workers must be running** for end-to-end check execution. They auto-discover each other via wrangler's local dev registry.
+The app Worker has DO bindings declared with `script_name: "uptime-scarecrow-scheduler"` — i.e. it talks to DO classes that live in the *other* Worker. Locally that means **both Workers must be running** for end-to-end check execution. They auto-discover each other via wrangler's local dev registry.
 
-## Two terminals
+## One terminal
 
 ```bash
-# Terminal 1 — the scheduler (DOs, crons, queue consumer)
-npm run dev:scheduler        # wrangler dev -c wrangler.scheduler.jsonc --port 8788 --test-scheduled
-
-# Terminal 2 — the Astro UI + API
-npm run dev                  # astro dev → localhost:4321
+npm run dev
 ```
 
-UI-only work? Terminal 2 alone is fine. You'll see the dashboard, you can create/delete monitors, but **no checks will run** because the scheduler isn't up. Once you start Terminal 1, the next monitor you create will get its DO alarm armed in ~1s and start checking.
+Runs both processes concurrently with prefixed output (`[APP]` cyan, `[SCHED]` magenta). Ctrl+C cleans up both. Default ports:
+
+- **App (dashboard + UI):** http://localhost:4322 (Astro auto-falls-through if taken)
+- **Scheduler:** http://localhost:8788
+
+If you only need one side, `npm run dev:app` or `npm run dev:scheduler` start them individually.
 
 ## How crons behave locally
 

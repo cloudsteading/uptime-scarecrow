@@ -40,7 +40,7 @@ export const webhookChannel: ChannelAdapter = {
       try { secret = (JSON.parse(channel.config) as { secret?: string }).secret; } catch { /* keep undefined */ }
     }
     const body = JSON.stringify(buildPayload(n));
-    const headers: Record<string, string> = { 'content-type': 'application/json', 'user-agent': 'scarecrow/0.1' };
+    const headers: Record<string, string> = { 'content-type': 'application/json', 'user-agent': 'uptime-scarecrow/0.1' };
     if (secret) {
       const ts = Math.floor(Date.now() / 1000);
       const sig = await hmacHex(secret, `${ts}.${body}`);

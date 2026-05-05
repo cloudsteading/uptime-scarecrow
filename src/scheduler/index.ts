@@ -20,7 +20,7 @@ export default {
     const url = new URL(req.url);
     if (url.pathname === '/' || url.pathname === '/status') {
       return Response.json({
-        worker: 'cs-uptime-scheduler',
+        worker: 'uptime-scarecrow-scheduler',
         version: env.APP_VERSION,
         bindings: {
           DB:                !!env.DB,

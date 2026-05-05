@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "cs-uptime-app",
+  "name": "uptime-scarecrow-app",
   "account_id": "568ac4421f76a5632827450f5617a9e8",
   "compatibility_date": "2026-04-01",
   "compatibility_flags": ["nodejs_compat"],
@@ -8,7 +8,7 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "cs-uptime-db",
+      "database_name": "uptime-scarecrow-db",
       "database_id": "202932c5-1fd8-438f-b7ec-6f73e3b3c547",
       "migrations_dir": "./db/migrations"
     }
@@ -26,7 +26,7 @@
 
   "queues": {
     "producers": [
-      { "binding": "NOTIFY_QUEUE", "queue": "cs-uptime-notifications" }
+      { "binding": "NOTIFY_QUEUE", "queue": "uptime-scarecrow-notifications" }
     ]
   },
 
@@ -35,12 +35,12 @@
       {
         "name": "MONITOR_SCHEDULER",
         "class_name": "MonitorScheduler",
-        "script_name": "cs-uptime-scheduler"
+        "script_name": "uptime-scarecrow-scheduler"
       },
       {
         "name": "HEARTBEAT_TRACKER",
         "class_name": "HeartbeatTracker",
-        "script_name": "cs-uptime-scheduler"
+        "script_name": "uptime-scarecrow-scheduler"
       }
     ]
   },
@@ -50,7 +50,7 @@
   },
 
   "vars": {
-    "APP_NAME": "cs-uptime-monitor",
+    "APP_NAME": "uptime-scarecrow",
     "APP_VERSION": "0.1.0"
   },
 

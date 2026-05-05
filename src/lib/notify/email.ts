@@ -10,7 +10,7 @@ function escape(s: string): string {
 }
 
 function shellHtml(inner: string): string {
-  return `<!doctype html><html><body style="margin:0;background:#f5f5f4;padding:24px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;padding:24px;border:1px solid #e7e5e4">${inner}<hr style="margin:24px 0;border:0;border-top:1px solid #e7e5e4"><p style="margin:0;font:12px/1.5 system-ui;color:#94a3b8">scarecrow — built on Cloudflare</p></table></td></tr></table></body></html>`;
+  return `<!doctype html><html><body style="margin:0;background:#f5f5f4;padding:24px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;padding:24px;border:1px solid #e7e5e4">${inner}<hr style="margin:24px 0;border:0;border-top:1px solid #e7e5e4"><p style="margin:0;font:12px/1.5 system-ui;color:#94a3b8">uptime scarecrow — by cloudsteading</p></table></td></tr></table></body></html>`;
 }
 
 function renderEmail(n: Notification): { subject: string; text: string; html: string } {
@@ -19,8 +19,8 @@ function renderEmail(n: Notification): { subject: string; text: string; html: st
 
   if (n.kind === 'test') {
     return {
-      subject: '[scarecrow] Test alert',
-      text: `Test alert from scarecrow.\n\n${n.test_message ?? ''}\n\n${link}\n`,
+      subject: '[uptime-scarecrow] Test alert',
+      text: `Test alert from Uptime Scarecrow.\n\n${n.test_message ?? ''}\n\n${link}\n`,
       html: shellHtml(`
         <h1 style="margin:0 0 8px;font:600 20px/1.3 system-ui;color:#1c1f1e">Test alert</h1>
         <p style="margin:0 0 12px;font:14px/1.5 system-ui;color:#475569">${escape(n.test_message ?? 'If you received this, the email channel is wired up correctly.')}</p>

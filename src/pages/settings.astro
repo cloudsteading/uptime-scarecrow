@@ -49,7 +49,7 @@ function relTime(unix: number | null): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 ---
-<Layout title="Settings — Scarecrow">
+<Layout title="Settings — Uptime Scarecrow">
   <div class="mx-auto max-w-4xl px-6 py-8">
     <h1 class="text-2xl font-bold tracking-tight">Settings</h1>
     <p class="text-ink-400 text-sm mt-1">Single-tenant configuration. No SaaS plan, no billing.</p>
@@ -224,7 +224,7 @@ function relTime(unix: number | null): string {
               <label class="block text-xs uppercase tracking-wide text-ink-500 mb-1.5" for="ch_url_webhook">URL</label>
               <input id="ch_url_webhook" name="url" type="url" autocomplete="off"
                      class="w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2 font-mono text-xs"
-                     placeholder="https://example.com/scarecrow" />
+                     placeholder="https://example.com/webhook" />
             </div>
             <div class="mt-3">
               <label class="block text-xs uppercase tracking-wide text-ink-500 mb-1.5" for="ch_secret">Signing secret (optional)</label>
