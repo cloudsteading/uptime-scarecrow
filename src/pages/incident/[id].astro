@@ -1,0 +1,247 @@
+---
+import Layout from '~/layouts/Layout.astro';
+import { db } from '~/lib/db';
+
+const id = Number(Astro.params.id);
+if (!Number.isFinite(id)) return Astro.redirect('/incidents');
+
+type IncidentDetail = {
+  id: number;
+  monitor_id: number;
+  monitor_name: string;
+  monitor_type: 'http' | 'heartbeat';
+  monitor_url: string | null;
+  opened_at: number;
+  resolved_at: number | null;
+  cause: string | null;
+  sample_response: string | null;
+  ai_summary: string | null;
+};
+
+let incident: IncidentDetail | null = null;
+type SendRow = {
+  id: number;
+  channel_id: number | null;
+  channel_type: string;
+  channel_name: string | null;
+  recipient: string | null;
+  status: string;
+  latency_ms: number | null;
+  error: string | null;
+  kind: string;
+  sent_at: number;
+};
+let sends: SendRow[] = [];
+let bracketingChecks: { started_at: number; status: string; latency_ms: number | null; http_code: number | null; error_kind: string | null; error_msg: string | null }[] = [];
+
+try {
+  incident = await db()
+    .prepare(
+      `SELECT i.id, i.monitor_id, i.opened_at, i.resolved_at, i.cause,
+              i.sample_response, i.ai_summary,
+              m.name AS monitor_name, m.type AS monitor_type,
+              json_extract(m.config, '$.url') AS monitor_url
+         FROM incident i
+         JOIN monitor m ON m.id = i.monitor_id
+        WHERE i.id = ?`,
+    )
+    .bind(id)
+    .first<IncidentDetail>();
+
+  if (incident) {
+    const r = await db()
+      .prepare(
+        `SELECT n.id, n.channel_id, n.channel_type, n.recipient, n.status,
+                n.latency_ms, n.error, n.kind, n.sent_at,
+                c.name AS channel_name
+           FROM notification_log n
+           LEFT JOIN notification_channel c ON c.id = n.channel_id
+          WHERE n.incident_id = ?
+          ORDER BY n.sent_at`,
+      )
+      .bind(id)
+      .all<SendRow>();
+    sends = r.results;
+
+    const padBefore = 120;
+    const winStart = incident.opened_at - padBefore;
+    const winEnd = incident.resolved_at ?? Math.floor(Date.now() / 1000);
+    const checks = await db()
+      .prepare(
+        `SELECT started_at, status, latency_ms, http_code, error_kind, error_msg
+           FROM recent_check WHERE monitor_id = ? AND started_at >= ? AND started_at <= ?
+           ORDER BY started_at`,
+      )
+      .bind(incident.monitor_id, winStart, winEnd)
+      .all<typeof bracketingChecks[number]>();
+    bracketingChecks = checks.results;
+  }
+} catch {
+  // DB not available locally — redirect below.
+}
+
+if (!incident) return Astro.redirect('/incidents');
+
+function fmtAbs(unix: number): string {
+  return new Date(unix * 1000).toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+}
+function fmtDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return `${h}h ${m}m`;
+}
+const isOpen = incident.resolved_at === null;
+const duration = (incident.resolved_at ?? Math.floor(Date.now() / 1000)) - incident.opened_at;
+
+function statusPill(s: string) {
+  if (s === 'sent')    return { cls: 'bg-up-soft/40 text-up border-up-soft/60', label: 'sent' };
+  if (s === 'failed')  return { cls: 'bg-down-soft/40 text-down border-down-soft/60', label: 'failed' };
+  if (s === 'skipped') return { cls: 'bg-ink-800 text-ink-400 border-ink-700', label: 'skipped' };
+  return { cls: 'bg-ink-800 text-ink-400 border-ink-700', label: s };
+}
+---
+<Layout title={`Incident #${incident.id} — ${incident.monitor_name} — Scarecrow`}>
+  <div class="mx-auto max-w-5xl px-6 py-8">
+    <a href={`/monitor/${incident.monitor_id}`} class="text-ink-500 text-sm hover:text-ink-300">← {incident.monitor_name}</a>
+    <div class="mt-2 flex items-start justify-between flex-wrap gap-4">
+      <div>
+        <div class="flex items-center gap-3">
+          <span class={`inline-block w-2.5 h-2.5 rounded-full ${isOpen ? 'bg-down shadow-[0_0_10px_1px_rgba(168,57,44,0.55)]' : 'bg-paused'}`}></span>
+          <h1 class="text-2xl font-bold tracking-tight">Incident #{incident.id}</h1>
+          <span class={`px-2 py-0.5 rounded-md text-xs ${isOpen ? 'bg-down-soft/30 text-down' : 'bg-ink-800 text-ink-400'}`}>
+            {isOpen ? 'open' : 'resolved'}
+          </span>
+          <span class="px-2 py-0.5 rounded-md text-xs bg-ink-800 text-ink-300">{incident.monitor_type}</span>
+        </div>
+        <p class="text-ink-500 font-mono text-sm mt-1">{incident.monitor_url ?? '—'}</p>
+      </div>
+    </div>
+
+    <div class="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div class="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+        <div class="text-ink-500 text-xs uppercase tracking-wide">Opened</div>
+        <div class="text-base font-bold mt-1 font-mono">{fmtAbs(incident.opened_at)}</div>
+      </div>
+      <div class="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+        <div class="text-ink-500 text-xs uppercase tracking-wide">{isOpen ? 'Ongoing for' : 'Duration'}</div>
+        <div class={`text-base font-bold mt-1 font-mono ${isOpen ? 'text-down' : ''}`}>{fmtDuration(duration)}</div>
+      </div>
+      <div class="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+        <div class="text-ink-500 text-xs uppercase tracking-wide">Resolved</div>
+        <div class="text-base font-bold mt-1 font-mono">
+          {incident.resolved_at ? fmtAbs(incident.resolved_at) : <span class="text-down">— still open</span>}
+        </div>
+      </div>
+      <div class="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+        <div class="text-ink-500 text-xs uppercase tracking-wide">Notifications</div>
+        <div class="text-base font-bold mt-1">
+          {sends.filter((s) => s.status === 'sent').length} sent
+          {sends.filter((s) => s.status === 'failed').length > 0 && (
+            <span class="text-down text-sm font-normal ml-2">· {sends.filter((s) => s.status === 'failed').length} failed</span>
+          )}
+        </div>
+      </div>
+    </div>
+
+    {incident.cause && (
+      <section class="mt-8">
+        <h2 class="text-sm uppercase tracking-wide text-ink-400 font-medium mb-2">Cause</h2>
+        <div class="rounded-lg border border-down-soft bg-down-soft/15 p-4 text-down font-mono text-sm whitespace-pre-wrap break-words">
+          {incident.cause}
+        </div>
+      </section>
+    )}
+
+    {incident.sample_response && (
+      <section class="mt-8">
+        <h2 class="text-sm uppercase tracking-wide text-ink-400 font-medium mb-2">Response sample</h2>
+        <pre class="rounded-lg border border-ink-800 bg-ink-950 p-4 text-xs text-ink-300 overflow-x-auto max-h-72">{incident.sample_response}</pre>
+      </section>
+    )}
+
+    <section class="mt-8">
+      <h2 class="text-sm uppercase tracking-wide text-ink-400 font-medium mb-2">Notification log</h2>
+      {sends.length === 0 ? (
+        <div class="rounded-lg border border-dashed border-ink-700 bg-ink-900/20 p-6 text-ink-500 text-sm">
+          No notifications recorded for this incident.
+          {' '}
+          <a href="/settings" class="text-link hover:underline">Add a channel</a> or toggle a user's alert email on at <a href="/settings" class="text-link hover:underline">/settings</a>.
+        </div>
+      ) : (
+        <div class="rounded-lg border border-ink-800 overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-ink-900/60 text-ink-400 text-xs uppercase tracking-wide">
+              <tr>
+                <th class="text-left font-medium px-4 py-3">Sent</th>
+                <th class="text-left font-medium px-4 py-3">Channel</th>
+                <th class="text-left font-medium px-4 py-3 hidden md:table-cell">Recipient</th>
+                <th class="text-left font-medium px-4 py-3">Kind</th>
+                <th class="text-left font-medium px-4 py-3">Status</th>
+                <th class="text-right font-medium px-4 py-3 hidden sm:table-cell">Latency</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-ink-800/60">
+              {sends.map((s) => {
+                const p = statusPill(s.status);
+                return (
+                  <tr>
+                    <td class="px-4 py-3 text-ink-400 font-mono text-xs">{fmtAbs(s.sent_at)}</td>
+                    <td class="px-4 py-3">
+                      <span class="px-2 py-0.5 rounded text-xs bg-ink-800 text-ink-300">{s.channel_type}</span>
+                      {s.channel_name && <span class="ml-2 text-ink-300">{s.channel_name}</span>}
+                    </td>
+                    <td class="px-4 py-3 hidden md:table-cell text-ink-400 font-mono text-xs truncate max-w-[28ch]">{s.recipient ?? '—'}</td>
+                    <td class="px-4 py-3 font-mono text-xs text-ink-400">{s.kind}</td>
+                    <td class="px-4 py-3">
+                      <span class={`px-2 py-0.5 rounded-md text-xs border ${p.cls}`}>{p.label}</span>
+                      {s.error && <div class="text-down text-xs mt-1 font-mono truncate max-w-[40ch]" title={s.error}>{s.error}</div>}
+                    </td>
+                    <td class="px-4 py-3 text-right hidden sm:table-cell text-ink-400 font-mono text-xs">{s.latency_ms ?? '—'}ms</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+
+    <section class="mt-8">
+      <h2 class="text-sm uppercase tracking-wide text-ink-400 font-medium mb-2">Checks around this window</h2>
+      {bracketingChecks.length === 0 ? (
+        <div class="rounded-lg border border-dashed border-ink-700 bg-ink-900/20 p-6 text-ink-500 text-sm">
+          No per-check rows survive (older than 8 days — only summary lives in <code class="font-mono">check_daily</code>).
+        </div>
+      ) : (
+        <div class="rounded-lg border border-ink-800 overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-ink-900/60 text-ink-400 text-xs uppercase tracking-wide">
+              <tr>
+                <th class="text-left font-medium px-4 py-3">Started</th>
+                <th class="text-left font-medium px-4 py-3">Status</th>
+                <th class="text-left font-medium px-4 py-3 hidden sm:table-cell">HTTP</th>
+                <th class="text-right font-medium px-4 py-3">Latency</th>
+                <th class="text-left font-medium px-4 py-3 hidden md:table-cell">Error</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-ink-800/60">
+              {bracketingChecks.map((c) => (
+                <tr>
+                  <td class="px-4 py-3 font-mono text-xs text-ink-400">{fmtAbs(c.started_at)}</td>
+                  <td class="px-4 py-3">
+                    <span class={`px-1.5 py-0.5 rounded text-xs ${c.status === 'ok' ? 'bg-up-soft/40 text-up' : 'bg-down-soft/40 text-down'}`}>{c.status}</span>
+                  </td>
+                  <td class="px-4 py-3 hidden sm:table-cell font-mono text-xs text-ink-400">{c.http_code ?? '—'}</td>
+                  <td class="px-4 py-3 text-right font-mono text-xs text-ink-300">{c.latency_ms ?? '—'}ms</td>
+                  <td class="px-4 py-3 hidden md:table-cell text-ink-400 truncate max-w-[40ch]" title={c.error_msg ?? ''}>{c.error_msg ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  </div>
+</Layout>

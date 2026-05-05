@@ -1,0 +1,162 @@
+---
+import Layout from '~/layouts/Layout.astro';
+import CronPreview from '~/components/CronPreview.astro';
+const params = new URL(Astro.request.url).searchParams;
+const type = (params.get('type') === 'heartbeat' ? 'heartbeat' : 'http') as 'http' | 'heartbeat';
+const error = params.get('error');
+---
+<Layout title="New monitor — Scarecrow">
+  <div class="mx-auto max-w-3xl px-6 py-8">
+    <a href="/" class="text-ink-500 text-sm hover:text-ink-300">← Monitors</a>
+    <h1 class="text-2xl font-bold tracking-tight mt-2">
+      New {type === 'http' ? 'HTTP monitor' : 'heartbeat monitor'}
+    </h1>
+
+    <div class="mt-4 inline-flex rounded-md border border-ink-800 p-1 text-sm">
+      <a href="/monitor/new?type=http"
+         class={`px-3 py-1.5 rounded ${type === 'http' ? 'bg-ink-800 text-ink-100' : 'text-ink-400 hover:text-ink-200'}`}>HTTP</a>
+      <a href="/monitor/new?type=heartbeat"
+         class={`px-3 py-1.5 rounded ${type === 'heartbeat' ? 'bg-ink-800 text-ink-100' : 'text-ink-400 hover:text-ink-200'}`}>Heartbeat</a>
+    </div>
+
+    {error && (
+      <div class="mt-4 rounded-md border border-down-soft bg-down-soft/20 p-3 text-sm text-down">
+        {decodeURIComponent(error)}
+      </div>
+    )}
+
+    <form method="POST" action="/api/v1/monitors" class="mt-6 space-y-5">
+      <input type="hidden" name="type" value={type} />
+
+      <div>
+        <label class="block text-sm text-ink-300 mb-1.5" for="name">Name</label>
+        <input id="name" name="name" required maxlength="100"
+               class="w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2 text-ink-100 focus:border-accent-600 focus:outline-none"
+               placeholder={type === 'http' ? 'cloudsteading.com' : 'Nightly backup cron'} />
+      </div>
+
+      {type === 'http' ? (
+        <>
+          <div>
+            <label class="block text-sm text-ink-300 mb-1.5" for="url">URL to check</label>
+            <input id="url" name="url" type="url" required
+                   class="w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2 text-ink-100 font-mono focus:border-accent-600 focus:outline-none"
+                   placeholder="https://example.com/healthz" />
+            <p class="text-ink-600 text-xs mt-1">https or http only. Internal/private addresses are rejected.</p>
+          </div>
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm text-ink-300 mb-1.5" for="method">Method</label>
+              <select id="method" name="method" class="w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2">
+                <option>GET</option><option>HEAD</option><option>POST</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm text-ink-300 mb-1.5" for="timeout">Timeout</label>
+              <select id="timeout" name="timeout_ms" class="w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2">
+                <option value="5000">5 seconds</option>
+                <option value="10000" selected>10 seconds</option>
+                <option value="30000">30 seconds</option>
+              </select>
+            </div>
+          </div>
+
+          <fieldset class="rounded-md border border-ink-800 p-4 space-y-4">
+            <legend class="px-2 text-xs uppercase tracking-wide text-ink-500">Schedule</legend>
+
+            <div>
+              <label class="flex items-center gap-2 text-sm text-ink-300">
+                <input type="radio" name="schedule_kind" value="interval" checked /> Fixed interval
+              </label>
+              <select name="interval_seconds" class="mt-2 w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2">
+                <option value="60">Every minute</option>
+                <option value="300" selected>Every 5 minutes</option>
+                <option value="900">Every 15 minutes</option>
+                <option value="3600">Every hour</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="flex items-center gap-2 text-sm text-ink-300">
+                <input type="radio" name="schedule_kind" value="cron" /> Cron expression (UTC)
+              </label>
+              <input id="cron_expression_http_new" name="cron_expression"
+                     class="mt-2 w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2 font-mono text-sm"
+                     placeholder="0 9 * * 1-5" />
+              <p class="text-ink-600 text-xs mt-1">For non-uniform schedules — e.g. weekdays only, or daily after a known job finishes.</p>
+              <CronPreview inputId="cron_expression_http_new" />
+            </div>
+          </fieldset>
+
+          <div>
+            <label class="block text-sm text-ink-300 mb-1.5" for="keyword">Required keyword (optional)</label>
+            <input id="keyword" name="keyword_present"
+                   class="w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2 font-mono text-sm"
+                   placeholder='"status":"ok"' />
+            <p class="text-ink-600 text-xs mt-1">Check fails if this string is missing from the response body.</p>
+          </div>
+        </>
+      ) : (
+        <>
+          <fieldset class="rounded-md border border-ink-800 p-4 space-y-4">
+            <legend class="px-2 text-xs uppercase tracking-wide text-ink-500">Schedule</legend>
+
+            <div>
+              <label class="flex items-center gap-2 text-sm text-ink-300">
+                <input type="radio" name="schedule_kind" value="interval" checked /> Fixed interval
+              </label>
+              <select name="interval_seconds" class="mt-2 w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2">
+                <option value="60">Every minute</option>
+                <option value="300">Every 5 minutes</option>
+                <option value="3600" selected>Every hour</option>
+                <option value="21600">Every 6 hours</option>
+                <option value="86400">Daily</option>
+                <option value="604800">Weekly</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="flex items-center gap-2 text-sm text-ink-300">
+                <input type="radio" name="schedule_kind" value="cron" /> Cron expression (UTC)
+              </label>
+              <input id="cron_expression_new" name="cron_expression"
+                     class="mt-2 w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2 font-mono text-sm"
+                     placeholder="0 3 * * *" />
+              <p class="text-ink-600 text-xs mt-1">
+                Five fields: <code class="font-mono">minute hour dom month dow</code>. Supports <code class="font-mono">*/5</code>, ranges, lists, and <code class="font-mono">@hourly</code> / <code class="font-mono">@daily</code> / <code class="font-mono">@weekly</code> aliases.
+              </p>
+              <CronPreview inputId="cron_expression_new" />
+            </div>
+          </fieldset>
+
+          <div>
+            <label class="block text-sm text-ink-300 mb-1.5" for="grace">
+              Grace window
+              <span class="text-ink-600 text-xs font-normal">— how late can a ping be and still count as on-time</span>
+            </label>
+            <select id="grace" name="grace_seconds" class="w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2">
+              <option value="60">1 minute</option>
+              <option value="300" selected>5 minutes</option>
+              <option value="900">15 minutes</option>
+              <option value="3600">1 hour</option>
+              <option value="21600">6 hours</option>
+            </select>
+            <p class="text-ink-600 text-xs mt-1">A ping arriving inside this window is still on-time. We only alert after this elapses without a ping.</p>
+          </div>
+
+          <div class="rounded-md border border-ink-800 bg-ink-900/40 p-4 text-sm text-ink-400">
+            <div class="text-ink-200 font-medium mb-1">After you save</div>
+            We'll generate a unique ping URL like
+            <code class="font-mono text-ink-300">https://your-app/h/&lt;token&gt;</code>.
+            Curl it from your cron each run — if a window passes without a ping (plus your grace), we open an incident.
+          </div>
+        </>
+      )}
+
+      <div class="flex items-center gap-2 pt-2">
+        <button type="submit" class="px-4 py-2 rounded-md bg-accent-600 hover:bg-accent-500 text-white font-medium">Create monitor</button>
+        <a href="/" class="px-4 py-2 rounded-md border border-ink-700 hover:border-ink-500 text-ink-200">Cancel</a>
+      </div>
+    </form>
+  </div>
+</Layout>

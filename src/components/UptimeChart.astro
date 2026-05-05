@@ -1,0 +1,118 @@
+---
+// 7-day uptime chart. 168 hourly buckets, color-coded by uptime ratio.
+// Server-rendered SVG — no client JS. Tooltips via native <title>.
+
+import type { RecentCheckRow } from '~/lib/db';
+
+interface Props {
+  checks: RecentCheckRow[];
+  /** Now in unix seconds; allows deterministic rendering during tests. */
+  nowSec?: number;
+}
+
+const { checks, nowSec = Math.floor(Date.now() / 1000) } = Astro.props;
+
+const HOURS = 168;
+const BUCKET_S = 3600;
+const startSec = nowSec - HOURS * BUCKET_S;
+
+type Bucket = { hour: number; total: number; ok: number; fail: number; sumLatency: number };
+const buckets: Bucket[] = Array.from({ length: HOURS }, (_, i) => ({
+  hour: i,
+  total: 0, ok: 0, fail: 0, sumLatency: 0,
+}));
+
+for (const c of checks) {
+  if (c.started_at < startSec || c.started_at >= nowSec) continue;
+  const h = Math.floor((c.started_at - startSec) / BUCKET_S);
+  if (h < 0 || h >= HOURS) continue;
+  const b = buckets[h];
+  b.total++;
+  if (c.status === 'ok') b.ok++;
+  else b.fail++;
+  if (c.latency_ms != null) b.sumLatency += c.latency_ms;
+}
+
+function bucketClass(b: Bucket): string {
+  if (b.total === 0) return 'fill-ink-800';
+  const ratio = b.ok / b.total;
+  if (ratio >= 1)    return 'fill-up';
+  if (ratio >= 0.95) return 'fill-up/70';
+  if (ratio >= 0.5)  return 'fill-degraded';
+  return 'fill-down';
+}
+
+function tipFor(b: Bucket): string {
+  const at = new Date((startSec + b.hour * BUCKET_S) * 1000)
+    .toISOString().replace('T', ' ').slice(0, 13) + ':00 UTC';
+  if (b.total === 0) return `${at} — no checks`;
+  const pct = ((b.ok / b.total) * 100).toFixed(1);
+  const avg = b.total > 0 ? Math.round(b.sumLatency / b.total) : 0;
+  return `${at} — ${b.ok}/${b.total} ok (${pct}%)${avg ? ` · avg ${avg}ms` : ''}`;
+}
+
+const totalChecks = buckets.reduce((s, b) => s + b.total, 0);
+const totalOk = buckets.reduce((s, b) => s + b.ok, 0);
+const uptimePct = totalChecks > 0 ? (totalOk / totalChecks) * 100 : null;
+const totalDays = 7;
+
+// Layout: 168 bars, 1 px gap, fixed bar width derived from container width.
+// We render at 100% width via viewBox, so width units below are arbitrary.
+const W = 1000;
+const H = 56;
+const gap = 1;
+const barW = (W - gap * (HOURS - 1)) / HOURS;
+
+// Day labels: at hour 0, 24, 48, ... (7 ticks)
+const dayLabels = Array.from({ length: totalDays }, (_, day) => {
+  const ts = (startSec + day * 24 * 3600) * 1000;
+  const d = new Date(ts);
+  const x = day * 24 * (barW + gap);
+  return { x, label: d.toISOString().slice(5, 10) }; // "MM-DD"
+});
+---
+<div class="rounded-lg border border-ink-800 bg-ink-900/30 p-5">
+  <div class="flex items-baseline justify-between mb-3">
+    <div>
+      <div class="font-medium">Last 7 days</div>
+      <div class="text-ink-500 text-xs mt-0.5">{HOURS} hourly buckets · {totalChecks} check{totalChecks === 1 ? '' : 's'}</div>
+    </div>
+    {uptimePct != null && (
+      <div class="text-right">
+        <div class="text-ink-500 text-xs uppercase tracking-wide">Uptime</div>
+        <div class={`font-mono text-xl font-bold ${uptimePct >= 99.9 ? 'text-up' : uptimePct >= 99 ? 'text-degraded' : 'text-down'}`}>
+          {uptimePct.toFixed(2)}%
+        </div>
+      </div>
+    )}
+  </div>
+
+  <svg viewBox={`0 0 ${W} ${H}`} class="w-full block" preserveAspectRatio="none" role="img" aria-label="Last 7 days uptime by hour">
+    {buckets.map((b, i) => (
+      <rect
+        x={i * (barW + gap)}
+        y={0}
+        width={barW}
+        height={H}
+        class={bucketClass(b)}
+        rx={0.5}
+      >
+        <title>{tipFor(b)}</title>
+      </rect>
+    ))}
+  </svg>
+
+  <div class="relative mt-1.5 h-4 text-[10px] text-ink-600 font-mono">
+    {dayLabels.map((d) => (
+      <span class="absolute" style={`left: ${(d.x / W) * 100}%`}>{d.label}</span>
+    ))}
+    <span class="absolute right-0 text-ink-500">now</span>
+  </div>
+
+  <div class="flex items-center gap-4 text-xs text-ink-500 mt-3">
+    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-up"></span>Up</span>
+    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-degraded"></span>Degraded</span>
+    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-down"></span>Down</span>
+    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-ink-800"></span>No data</span>
+  </div>
+</div>

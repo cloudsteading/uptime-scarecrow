@@ -1,0 +1,316 @@
+---
+import Layout from '~/layouts/Layout.astro';
+import { listUsers } from '~/lib/db';
+import { listChannels } from '~/lib/channels';
+import { env } from 'cloudflare:workers';
+
+const flash = Astro.url.searchParams.get('flash');
+const flashKind = Astro.url.searchParams.get('flash_kind') ?? 'ok';
+
+let users: Awaited<ReturnType<typeof listUsers>> = [];
+let channels: Awaited<ReturnType<typeof listChannels>> = [];
+let dbReady = true;
+try {
+  users = await listUsers();
+  channels = await listChannels();
+} catch { dbReady = false; }
+
+function channelDestination(c: typeof channels[number]): string {
+  try {
+    const cfg = JSON.parse(c.config) as { address?: string; url?: string };
+    if (c.type === 'email') return cfg.address ?? '—';
+    return cfg.url ? cfg.url.replace(/^https?:\/\//, '').slice(0, 50) + (cfg.url.length > 57 ? '…' : '') : '—';
+  } catch { return '—'; }
+}
+
+function channelTypeIcon(t: string): string {
+  switch (t) {
+    case 'email':   return '✉';
+    case 'slack':   return '#';
+    case 'discord': return 'D';
+    case 'webhook': return '⚡';
+    default:        return '•';
+  }
+}
+
+const accessConfigured = !!env.ACCESS_TEAM_DOMAIN && !!env.ACCESS_AUD;
+const emailConfigured = !!env.EMAIL_FROM;
+const sendBindingPresent = !!env.SEND_EMAIL;
+const allowed = (env.ALLOWED_EMAILS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+
+const me = Astro.locals.user;
+
+function relTime(unix: number | null): string {
+  if (!unix) return 'never';
+  const diff = Math.floor(Date.now() / 1000) - unix;
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+---
+<Layout title="Settings — Scarecrow">
+  <div class="mx-auto max-w-4xl px-6 py-8">
+    <h1 class="text-2xl font-bold tracking-tight">Settings</h1>
+    <p class="text-ink-400 text-sm mt-1">Single-tenant configuration. No SaaS plan, no billing.</p>
+
+    {flash && (
+      <div class={`mt-4 rounded-md border p-3 text-sm ${flashKind === 'err'
+          ? 'border-down-soft bg-down-soft/20 text-down'
+          : 'border-up-soft/50 bg-up-soft/15 text-up'}`}>
+        {decodeURIComponent(flash)}
+      </div>
+    )}
+
+    {!dbReady && (
+      <div class="mt-6 rounded-md border border-degraded-soft bg-degraded-soft/20 p-4 text-sm text-degraded">
+        D1 binding not available. Run <code class="font-mono text-ink-200">npm run db:migrate:local</code>.
+      </div>
+    )}
+
+    <section class="mt-8">
+      <div class="flex items-baseline justify-between">
+        <h2 class="text-lg font-semibold text-ink-100">Alert recipients</h2>
+        <form method="POST" action="/api/v1/test-email">
+          <button class="px-3 py-1.5 rounded-md border border-ink-700 hover:border-ink-500 text-ink-200 text-sm">Send test email to me</button>
+        </form>
+      </div>
+      <p class="text-ink-500 text-sm mt-1">Anyone toggled on receives <code class="font-mono">incident.open</code> and <code class="font-mono">incident.recover</code> emails.</p>
+
+      <div class="mt-4 rounded-lg border border-ink-800 overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-ink-900/60 text-ink-400 text-xs uppercase tracking-wide">
+            <tr>
+              <th class="text-left font-medium px-4 py-3">Email</th>
+              <th class="text-left font-medium px-4 py-3 hidden sm:table-cell">Role</th>
+              <th class="text-left font-medium px-4 py-3 hidden md:table-cell">Last seen</th>
+              <th class="text-right font-medium px-4 py-3">Alerts</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-ink-800/60">
+            {users.length === 0 && (
+              <tr><td colspan="4" class="px-4 py-6 text-center text-ink-500">No users yet.</td></tr>
+            )}
+            {users.map((u) => (
+              <tr>
+                <td class="px-4 py-3">
+                  <span class="font-mono text-ink-200">{u.email}</span>
+                  {me?.id === u.id && <span class="ml-2 px-1.5 py-0.5 rounded text-xs bg-ink-800 text-ink-400">you</span>}
+                </td>
+                <td class="px-4 py-3 hidden sm:table-cell">
+                  {u.is_admin
+                    ? <span class="px-1.5 py-0.5 rounded text-xs bg-accent-700/30 text-accent-300">admin</span>
+                    : <span class="px-1.5 py-0.5 rounded text-xs bg-ink-800 text-ink-400">member</span>}
+                </td>
+                <td class="px-4 py-3 hidden md:table-cell text-ink-500 text-xs">{relTime(u.last_seen_at)}</td>
+                <td class="px-4 py-3 text-right">
+                  <form method="POST" action={`/api/v1/users/${u.id}/alert-email`} class="inline">
+                    <input type="hidden" name="on" value={u.alert_email ? '0' : '1'} />
+                    <button class={`px-2.5 py-1 rounded-md text-xs ${u.alert_email
+                        ? 'bg-up-soft/40 text-up border border-up-soft/60'
+                        : 'bg-ink-800 text-ink-500 border border-ink-700'}`}>
+                      {u.alert_email ? 'On' : 'Off'}
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="mt-12">
+      <div class="flex items-baseline justify-between">
+        <h2 class="text-lg font-semibold text-ink-100">Notification channels</h2>
+        <span class="text-ink-500 text-xs">{channels.length} configured</span>
+      </div>
+      <p class="text-ink-500 text-sm mt-1">
+        Each enabled channel receives every <code class="font-mono">incident.open</code> / <code class="font-mono">incident.recover</code> notification.
+        Adding an explicit email channel here turns OFF the per-user fallback above.
+      </p>
+
+      {channels.length > 0 && (
+        <div class="mt-4 rounded-lg border border-ink-800 overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-ink-900/60 text-ink-400 text-xs uppercase tracking-wide">
+              <tr>
+                <th class="text-left font-medium px-4 py-3">Type</th>
+                <th class="text-left font-medium px-4 py-3">Name</th>
+                <th class="text-left font-medium px-4 py-3 hidden md:table-cell">Destination</th>
+                <th class="text-right font-medium px-4 py-3">Enabled</th>
+                <th class="text-right font-medium px-4 py-3"></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-ink-800/60">
+              {channels.map((c) => (
+                <tr>
+                  <td class="px-4 py-3">
+                    <span class="inline-flex items-center gap-2">
+                      <span class="inline-flex w-6 h-6 rounded items-center justify-center bg-ink-800 text-ink-300 font-mono text-xs">{channelTypeIcon(c.type)}</span>
+                      <span class="font-mono text-xs text-ink-300">{c.type}</span>
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 text-ink-100">{c.name}</td>
+                  <td class="px-4 py-3 hidden md:table-cell font-mono text-xs text-ink-500 truncate max-w-[40ch]">{channelDestination(c)}</td>
+                  <td class="px-4 py-3 text-right">
+                    <form method="POST" action={`/api/v1/channels/${c.id}/toggle`} class="inline">
+                      <button class={`px-2.5 py-1 rounded-md text-xs ${c.enabled
+                          ? 'bg-up-soft/40 text-up border border-up-soft/60'
+                          : 'bg-ink-800 text-ink-500 border border-ink-700'}`}>
+                        {c.enabled ? 'On' : 'Off'}
+                      </button>
+                    </form>
+                  </td>
+                  <td class="px-4 py-3 text-right">
+                    <form method="POST" action={`/api/v1/channels/${c.id}/test`} class="inline">
+                      <button class="px-2.5 py-1 rounded-md text-xs border border-ink-700 hover:border-ink-500 text-ink-300">Test</button>
+                    </form>
+                    <form method="POST" action={`/api/v1/channels/${c.id}/delete`} class="inline ml-1" onsubmit="return confirm('Delete this channel?')">
+                      <button class="px-2.5 py-1 rounded-md text-xs border border-down-soft hover:border-down text-down">Delete</button>
+                    </form>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <details class="mt-4 rounded-lg border border-ink-800 bg-ink-900/30 group">
+        <summary class="cursor-pointer px-4 py-3 text-sm text-ink-200 hover:bg-ink-900/50 select-none">
+          + Add a channel
+        </summary>
+        <form method="POST" action="/api/v1/channels" class="px-4 py-4 space-y-4 border-t border-ink-800">
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs uppercase tracking-wide text-ink-500 mb-1.5" for="ch_type">Type</label>
+              <select id="ch_type" name="type" class="w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2"
+                      onchange="document.querySelectorAll('[data-when-type]').forEach((el) => { el.style.display = el.dataset.whenType === this.value ? '' : 'none'; })">
+                <option value="email">Email</option>
+                <option value="slack">Slack (incoming webhook)</option>
+                <option value="discord">Discord (webhook)</option>
+                <option value="webhook">Generic webhook (JSON)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs uppercase tracking-wide text-ink-500 mb-1.5" for="ch_name">Name</label>
+              <input id="ch_name" name="name" required maxlength="100"
+                     class="w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2 text-ink-100"
+                     placeholder="oncall-alerts" />
+            </div>
+          </div>
+          <div data-when-type="email">
+            <label class="block text-xs uppercase tracking-wide text-ink-500 mb-1.5" for="ch_address">Email address</label>
+            <input id="ch_address" name="address" type="email" autocomplete="off"
+                   class="w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2 font-mono text-sm"
+                   placeholder="oncall@example.com" />
+          </div>
+          <div data-when-type="slack" style="display:none">
+            <label class="block text-xs uppercase tracking-wide text-ink-500 mb-1.5" for="ch_url_slack">Slack webhook URL</label>
+            <input id="ch_url_slack" name="url" type="url" autocomplete="off"
+                   class="w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2 font-mono text-xs"
+                   placeholder="https://hooks.slack.com/services/T.../B.../..." />
+            <p class="text-ink-600 text-xs mt-1">Create one at <span class="font-mono">api.slack.com/apps</span> → Incoming Webhooks.</p>
+          </div>
+          <div data-when-type="discord" style="display:none">
+            <label class="block text-xs uppercase tracking-wide text-ink-500 mb-1.5" for="ch_url_discord">Discord webhook URL</label>
+            <input id="ch_url_discord" name="url" type="url" autocomplete="off"
+                   class="w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2 font-mono text-xs"
+                   placeholder="https://discord.com/api/webhooks/..." />
+          </div>
+          <div data-when-type="webhook" style="display:none">
+            <div>
+              <label class="block text-xs uppercase tracking-wide text-ink-500 mb-1.5" for="ch_url_webhook">URL</label>
+              <input id="ch_url_webhook" name="url" type="url" autocomplete="off"
+                     class="w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2 font-mono text-xs"
+                     placeholder="https://example.com/scarecrow" />
+            </div>
+            <div class="mt-3">
+              <label class="block text-xs uppercase tracking-wide text-ink-500 mb-1.5" for="ch_secret">Signing secret (optional)</label>
+              <input id="ch_secret" name="secret" type="text" autocomplete="off"
+                     class="w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2 font-mono text-xs"
+                     placeholder="any-string — used for HMAC-SHA256" />
+              <p class="text-ink-600 text-xs mt-1">If set, requests carry <code class="font-mono">X-Scarecrow-Signature: t=&lt;unix&gt;,v1=&lt;hex&gt;</code>.</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="submit" class="px-3 py-2 rounded-md bg-accent-600 hover:bg-accent-500 text-white text-sm font-medium">Add channel</button>
+            <button type="reset" class="px-3 py-2 rounded-md border border-ink-700 text-ink-300 text-sm">Reset</button>
+          </div>
+        </form>
+      </details>
+    </section>
+
+    <section class="mt-12">
+      <h2 class="text-lg font-semibold text-ink-100">Email delivery</h2>
+      <div class="mt-3 rounded-lg border border-ink-800 bg-ink-900/30 p-4 grid sm:grid-cols-2 gap-3 text-sm">
+        <div>
+          <div class="text-ink-500 text-xs uppercase tracking-wide">Provider</div>
+          <div class="mt-1 text-ink-200">Cloudflare Email Service binding</div>
+        </div>
+        <div>
+          <div class="text-ink-500 text-xs uppercase tracking-wide">Binding present</div>
+          <div class={`mt-1 ${sendBindingPresent ? 'text-up' : 'text-down'}`}>
+            {sendBindingPresent ? 'yes — env.SEND_EMAIL bound' : 'no — set up the send_email binding in wrangler.jsonc'}
+          </div>
+        </div>
+        <div>
+          <div class="text-ink-500 text-xs uppercase tracking-wide">From address</div>
+          <div class="mt-1 font-mono text-ink-200">{env.EMAIL_FROM ?? <span class="text-down">unset — wrangler secret put EMAIL_FROM</span>}</div>
+        </div>
+        <div>
+          <div class="text-ink-500 text-xs uppercase tracking-wide">Status</div>
+          <div class={`mt-1 ${emailConfigured && sendBindingPresent ? 'text-up' : 'text-degraded'}`}>
+            {emailConfigured && sendBindingPresent ? 'ready' : 'not ready — emails will be skipped (logged to console)'}
+          </div>
+        </div>
+      </div>
+      <p class="text-ink-600 text-xs mt-2">
+        In <code class="font-mono">wrangler dev</code> the binding is mock-only — sends are logged but not delivered.
+        Real delivery requires the paid Workers plan + Email Service enabled on the account, plus a verified <code class="font-mono">EMAIL_FROM</code>.
+      </p>
+    </section>
+
+    <section class="mt-12">
+      <h2 class="text-lg font-semibold text-ink-100">Authentication</h2>
+      <div class="mt-3 rounded-lg border border-ink-800 bg-ink-900/30 p-4 grid sm:grid-cols-2 gap-3 text-sm">
+        <div>
+          <div class="text-ink-500 text-xs uppercase tracking-wide">Cloudflare Access</div>
+          <div class={`mt-1 ${accessConfigured ? 'text-up' : 'text-degraded'}`}>
+            {accessConfigured ? 'configured' : 'dev mode — no JWT required'}
+          </div>
+        </div>
+        <div>
+          <div class="text-ink-500 text-xs uppercase tracking-wide">Team domain</div>
+          <div class="mt-1 font-mono text-ink-200">{env.ACCESS_TEAM_DOMAIN ?? '—'}</div>
+        </div>
+        <div>
+          <div class="text-ink-500 text-xs uppercase tracking-wide">Email allowlist</div>
+          <div class="mt-1 text-ink-300">{allowed.length === 0 ? 'open (no allowlist)' : `${allowed.length} email${allowed.length === 1 ? '' : 's'}`}</div>
+        </div>
+        <div>
+          <div class="text-ink-500 text-xs uppercase tracking-wide">App base URL</div>
+          <div class="mt-1 font-mono text-ink-200 text-xs">{env.APP_BASE_URL ?? '—'}</div>
+        </div>
+      </div>
+      <p class="text-ink-600 text-xs mt-2">
+        These come from Worker secrets / vars. Edit them with <code class="font-mono">wrangler secret put</code> — they aren't editable from the UI.
+      </p>
+    </section>
+
+    <section class="mt-12">
+      <h2 class="text-lg font-semibold text-ink-100">Build</h2>
+      <div class="mt-3 rounded-lg border border-ink-800 bg-ink-900/30 p-4 grid sm:grid-cols-2 gap-3 text-sm">
+        <div>
+          <div class="text-ink-500 text-xs uppercase tracking-wide">App version</div>
+          <div class="mt-1 font-mono text-ink-200">{env.APP_VERSION}</div>
+        </div>
+        <div>
+          <div class="text-ink-500 text-xs uppercase tracking-wide">Storage</div>
+          <div class="mt-1 text-ink-300">D1 only (see <a href="/about" class="text-link hover:underline">spec</a>)</div>
+        </div>
+      </div>
+    </section>
+  </div>
+</Layout>

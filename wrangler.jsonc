@@ -1,0 +1,56 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cs-uptime-app",
+  "account_id": "568ac4421f76a5632827450f5617a9e8",
+  "compatibility_date": "2026-04-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cs-uptime-db",
+      "database_id": "202932c5-1fd8-438f-b7ec-6f73e3b3c547",
+      "migrations_dir": "./db/migrations"
+    }
+  ],
+
+  "kv_namespaces": [
+    { "binding": "CACHE", "id": "d6aa1b79ba70472b845f37f14ff7ddb4" }
+  ],
+
+  "ai": { "binding": "AI" },
+
+  "send_email": [
+    { "name": "SEND_EMAIL" }
+  ],
+
+  "queues": {
+    "producers": [
+      { "binding": "NOTIFY_QUEUE", "queue": "cs-uptime-notifications" }
+    ]
+  },
+
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MONITOR_SCHEDULER",
+        "class_name": "MonitorScheduler",
+        "script_name": "cs-uptime-scheduler"
+      },
+      {
+        "name": "HEARTBEAT_TRACKER",
+        "class_name": "HeartbeatTracker",
+        "script_name": "cs-uptime-scheduler"
+      }
+    ]
+  },
+
+  "observability": {
+    "enabled": true
+  },
+
+  "vars": {
+    "APP_NAME": "cs-uptime-monitor",
+    "APP_VERSION": "0.1.0"
+  }
+}

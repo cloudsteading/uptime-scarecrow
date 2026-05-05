@@ -1,0 +1,186 @@
+---
+import Layout from '~/layouts/Layout.astro';
+import CronPreview from '~/components/CronPreview.astro';
+import { getMonitor } from '~/lib/monitors';
+import type { HttpMonitorConfig, HeartbeatMonitorConfig } from '~/lib/db';
+
+const id = Number(Astro.params.id);
+if (!Number.isFinite(id)) return Astro.redirect('/');
+
+let monitor: Awaited<ReturnType<typeof getMonitor>> = null;
+try { monitor = await getMonitor(id); } catch { /* db not ready */ }
+if (!monitor) return Astro.redirect('/');
+
+const error = Astro.url.searchParams.get('error');
+const httpCfg = monitor.type === 'http' ? (monitor.parsed_config as HttpMonitorConfig) : null;
+const hbCfg = monitor.type === 'heartbeat' ? (monitor.parsed_config as HeartbeatMonitorConfig) : null;
+const usingCron = !!(hbCfg?.cron_expression || httpCfg?.cron_expression);
+---
+<Layout title={`Edit ${monitor.name} — Scarecrow`}>
+  <div class="mx-auto max-w-3xl px-6 py-8">
+    <a href={`/monitor/${id}`} class="text-ink-500 text-sm hover:text-ink-300">← {monitor.name}</a>
+    <h1 class="text-2xl font-bold tracking-tight mt-2">
+      Edit {monitor.type === 'http' ? 'HTTP monitor' : 'heartbeat monitor'}
+    </h1>
+
+    {error && (
+      <div class="mt-4 rounded-md border border-down-soft bg-down-soft/20 p-3 text-sm text-down">
+        {decodeURIComponent(error)}
+      </div>
+    )}
+
+    <form method="POST" action={`/api/v1/monitors/${id}/update`} class="mt-6 space-y-5">
+      <input type="hidden" name="type" value={monitor.type} />
+
+      <div>
+        <label class="block text-sm text-ink-300 mb-1.5" for="name">Name</label>
+        <input id="name" name="name" required maxlength="100" value={monitor.name}
+               class="w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2 text-ink-100 focus:border-accent-600 focus:outline-none" />
+      </div>
+
+      {monitor.type === 'http' && httpCfg && (
+        <>
+          <div>
+            <label class="block text-sm text-ink-300 mb-1.5" for="url">URL</label>
+            <input id="url" name="url" type="url" required value={httpCfg.url}
+                   class="w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2 text-ink-100 font-mono focus:border-accent-600 focus:outline-none" />
+          </div>
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm text-ink-300 mb-1.5" for="method">Method</label>
+              <select id="method" name="method" class="w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2">
+                {['GET', 'HEAD', 'POST'].map((m) => (
+                  <option value={m} selected={httpCfg.method === m}>{m}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm text-ink-300 mb-1.5" for="timeout">Timeout</label>
+              <select id="timeout" name="timeout_ms" class="w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2">
+                {[
+                  { v: 5000,  l: '5 seconds' },
+                  { v: 10000, l: '10 seconds' },
+                  { v: 30000, l: '30 seconds' },
+                ].map((o) => (
+                  <option value={o.v} selected={(httpCfg.timeout_ms || 10000) === o.v}>{o.l}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <fieldset class="rounded-md border border-ink-800 p-4 space-y-4">
+            <legend class="px-2 text-xs uppercase tracking-wide text-ink-500">Schedule</legend>
+
+            <div>
+              <label class="flex items-center gap-2 text-sm text-ink-300">
+                <input type="radio" name="schedule_kind" value="interval" checked={!usingCron} /> Fixed interval
+              </label>
+              <select name="interval_seconds" class="mt-2 w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2">
+                {[
+                  { v: 60,   l: 'Every minute' },
+                  { v: 300,  l: 'Every 5 minutes' },
+                  { v: 900,  l: 'Every 15 minutes' },
+                  { v: 3600, l: 'Every hour' },
+                ].map((o) => (
+                  <option value={o.v} selected={!usingCron && monitor.interval_seconds === o.v}>{o.l}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label class="flex items-center gap-2 text-sm text-ink-300">
+                <input type="radio" name="schedule_kind" value="cron" checked={usingCron} /> Cron expression (UTC)
+              </label>
+              <input id="cron_expression_http_edit" name="cron_expression" value={httpCfg.cron_expression ?? ''}
+                     class="mt-2 w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2 font-mono text-sm"
+                     placeholder="0 9 * * 1-5" />
+              <CronPreview inputId="cron_expression_http_edit" />
+            </div>
+          </fieldset>
+
+          <div>
+            <label class="block text-sm text-ink-300 mb-1.5" for="keyword">Required keyword (optional)</label>
+            <input id="keyword" name="keyword_present" value={httpCfg.keyword_present ?? ''}
+                   class="w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2 font-mono text-sm" />
+          </div>
+        </>
+      )}
+
+      {monitor.type === 'heartbeat' && hbCfg && (
+        <>
+          <fieldset class="rounded-md border border-ink-800 p-4 space-y-4">
+            <legend class="px-2 text-xs uppercase tracking-wide text-ink-500">Schedule</legend>
+
+            <div>
+              <label class="flex items-center gap-2 text-sm text-ink-300">
+                <input type="radio" name="schedule_kind" value="interval" checked={!usingCron} /> Fixed interval
+              </label>
+              <select name="interval_seconds" class="mt-2 w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2">
+                {[
+                  { v: 60,     l: 'Every minute' },
+                  { v: 300,    l: 'Every 5 minutes' },
+                  { v: 3600,   l: 'Every hour' },
+                  { v: 21600,  l: 'Every 6 hours' },
+                  { v: 86400,  l: 'Daily' },
+                  { v: 604800, l: 'Weekly' },
+                ].map((o) => (
+                  <option value={o.v} selected={!usingCron && monitor.interval_seconds === o.v}>{o.l}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label class="flex items-center gap-2 text-sm text-ink-300">
+                <input type="radio" name="schedule_kind" value="cron" checked={usingCron} /> Cron expression (UTC)
+              </label>
+              <input id="cron_expression_edit" name="cron_expression" value={hbCfg.cron_expression ?? ''}
+                     class="mt-2 w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2 font-mono text-sm"
+                     placeholder="0 3 * * *" />
+              <CronPreview inputId="cron_expression_edit" />
+            </div>
+          </fieldset>
+
+          <div>
+            <label class="block text-sm text-ink-300 mb-1.5" for="grace">Grace window</label>
+            <select id="grace" name="grace_seconds" class="w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2">
+              {[
+                { v: 60,    l: '1 minute' },
+                { v: 300,   l: '5 minutes' },
+                { v: 900,   l: '15 minutes' },
+                { v: 3600,  l: '1 hour' },
+                { v: 21600, l: '6 hours' },
+              ].map((o) => (
+                <option value={o.v} selected={monitor.grace_seconds === o.v}>{o.l}</option>
+              ))}
+            </select>
+          </div>
+        </>
+      )}
+
+      <fieldset class="rounded-md border border-ink-800 p-4 space-y-4">
+        <legend class="px-2 text-xs uppercase tracking-wide text-ink-500">Thresholds</legend>
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm text-ink-300 mb-1.5" for="failure_threshold">Failure threshold</label>
+            <input id="failure_threshold" name="failure_threshold" type="number" min="1" max="20"
+                   value={monitor.failure_threshold}
+                   class="w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2 font-mono" />
+            <p class="text-ink-600 text-xs mt-1">Consecutive failures before opening an incident.</p>
+          </div>
+          <div>
+            <label class="block text-sm text-ink-300 mb-1.5" for="recovery_threshold">Recovery threshold</label>
+            <input id="recovery_threshold" name="recovery_threshold" type="number" min="1" max="20"
+                   value={monitor.recovery_threshold}
+                   class="w-full bg-ink-900 border border-ink-800 rounded-md px-3 py-2 font-mono" />
+            <p class="text-ink-600 text-xs mt-1">Consecutive successes before closing.</p>
+          </div>
+        </div>
+      </fieldset>
+
+      <div class="flex items-center gap-2 pt-2">
+        <button type="submit" class="px-4 py-2 rounded-md bg-accent-600 hover:bg-accent-500 text-white font-medium">Save changes</button>
+        <a href={`/monitor/${id}`} class="px-4 py-2 rounded-md border border-ink-700 hover:border-ink-500 text-ink-200">Cancel</a>
+      </div>
+    </form>
+  </div>
+</Layout>

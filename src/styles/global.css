@@ -1,0 +1,75 @@
+@import "tailwindcss";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+
+/*
+ * Scarecrow theme — palette inspired by Counter-Strike 2's Cache map:
+ * post-Soviet industrial. Painted concrete walls (bone/ash/concrete),
+ * rusted steel signage (rust accent), faded hazard paint (moss/mustard/oxide).
+ *
+ * The `ink-*` ramp is repurposed: it goes bone (50) → charcoal (950) with
+ * a warm/green concrete tint instead of cool slate. Existing `bg-ink-950`,
+ * `text-ink-100`, etc. utilities pick up the new palette automatically.
+ *
+ * `accent-*` is rust (Cache Orange). Status tokens (`up`, `degraded`, `down`,
+ * `paused`, `link`) are new and map to moss / mustard / oxide / ash / steel.
+ */
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* ink — warm concrete ramp */
+  --color-ink-50:  #f7f4ec;
+  --color-ink-100: #ede8dd; /* bone — primary light surface / body text on dark */
+  --color-ink-200: #ddd6c5;
+  --color-ink-300: #c4bba6;
+  --color-ink-400: #a39b85;
+  --color-ink-500: #8a8a82; /* ash — muted text */
+  --color-ink-600: #6a6c66;
+  --color-ink-700: #4a4d48;
+  --color-ink-800: #3a3d3b; /* concrete — borders, raised surface */
+  --color-ink-900: #2a2c2a; /* rebar — dividers */
+  --color-ink-950: #1c1f1e; /* charcoal — primary dark surface */
+
+  /* accent — Cache rust */
+  --color-accent-300: #f4a466;
+  --color-accent-400: #e8923f;
+  --color-accent-500: #d97a2b; /* rust — brand */
+  --color-accent-600: #b8631e;
+  --color-accent-700: #934d15;
+
+  /* status — single-tone tokens, readable on both ink-950 and ink-100 */
+  --color-up:            #6b8f5e; /* moss */
+  --color-up-soft:       #3a4f33;
+  --color-degraded:      #c9a24a; /* mustard */
+  --color-degraded-soft: #6e5722;
+  --color-down:          #a8392c; /* oxide */
+  --color-down-soft:     #5c1f17;
+  --color-paused:        #8a8a82; /* ash */
+  --color-link:          #4f7a8c; /* steel */
+}
+
+html {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  background: var(--color-ink-950);
+  color: var(--color-ink-100);
+  font-feature-settings: "ss01", "cv11";
+}
+
+body {
+  min-height: 100dvh;
+}
+
+code, kbd, pre, samp {
+  font-family: var(--font-mono);
+}
+
+::selection {
+  background: var(--color-accent-500);
+  color: var(--color-ink-950);
+}

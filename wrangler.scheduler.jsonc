@@ -1,0 +1,68 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cs-uptime-scheduler",
+  "account_id": "568ac4421f76a5632827450f5617a9e8",
+  "main": "src/scheduler/index.ts",
+  "compatibility_date": "2026-04-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cs-uptime-db",
+      "database_id": "202932c5-1fd8-438f-b7ec-6f73e3b3c547",
+      "migrations_dir": "./db/migrations"
+    }
+  ],
+
+  "kv_namespaces": [
+    { "binding": "CACHE", "id": "d6aa1b79ba70472b845f37f14ff7ddb4" }
+  ],
+
+  "send_email": [
+    { "name": "SEND_EMAIL" }
+  ],
+
+  "queues": {
+    "consumers": [
+      {
+        "queue": "cs-uptime-notifications",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 3,
+        "dead_letter_queue": "cs-uptime-notifications-dlq"
+      }
+    ]
+  },
+
+  "durable_objects": {
+    "bindings": [
+      { "name": "MONITOR_SCHEDULER", "class_name": "MonitorScheduler" },
+      { "name": "HEARTBEAT_TRACKER", "class_name": "HeartbeatTracker" }
+    ]
+  },
+
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["MonitorScheduler", "HeartbeatTracker"]
+    }
+  ],
+
+  "triggers": {
+    "crons": [
+      "* * * * *",
+      "5 0 * * *",
+      "15 0 * * *"
+    ]
+  },
+
+  "observability": {
+    "enabled": true
+  },
+
+  "vars": {
+    "APP_NAME": "cs-uptime-monitor",
+    "APP_VERSION": "0.1.0"
+  }
+}

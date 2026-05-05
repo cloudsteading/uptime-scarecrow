@@ -1,0 +1,250 @@
+---
+import Layout from '~/layouts/Layout.astro';
+import UptimeChart from '~/components/UptimeChart.astro';
+import { getMonitor } from '~/lib/monitors';
+import { db } from '~/lib/db';
+import type { HeartbeatMonitorConfig, HttpMonitorConfig, RecentCheckRow } from '~/lib/db';
+import {
+  nextExpectedAt, relTimeUntil, fmtUtcShort,
+  isoWeekFromDate, mondayOfIsoWeek, parseWeekParam, formatWeekParam,
+  formatWeekRangeLabel, shiftIsoWeek,
+} from '~/lib/schedule';
+
+const idStr = Astro.params.id;
+const id = Number(idStr);
+if (!Number.isFinite(id)) return Astro.redirect('/');
+
+type IncidentEntry = { id: number; opened_at: number; resolved_at: number | null; cause: string | null };
+let monitor: Awaited<ReturnType<typeof getMonitor>> = null;
+let recent: RecentCheckRow[] = [];          // last 60 — used by the dense bar
+let weekChecks: RecentCheckRow[] = [];      // selected ISO week — used by UptimeChart
+let openIncidents: IncidentEntry[] = [];
+let pastIncidents: IncidentEntry[] = [];
+let dbReady = true;
+
+const requested = parseWeekParam(Astro.url.searchParams.get('week'));
+const now = new Date();
+const todayWeek = isoWeekFromDate(now);
+const view = requested ?? todayWeek;
+const weekStart = mondayOfIsoWeek(view.year, view.week);
+const weekEnd = new Date(weekStart); weekEnd.setUTCDate(weekStart.getUTCDate() + 7);
+const weekStartSec = Math.floor(weekStart.getTime() / 1000);
+const weekEndSec = Math.floor(weekEnd.getTime() / 1000);
+
+const isCurrentWeek = view.year === todayWeek.year && view.week === todayWeek.week;
+const prev = shiftIsoWeek(view.year, view.week, -1);
+const nextWeek = shiftIsoWeek(view.year, view.week, +1);
+const futureWeek = nextWeek.year > todayWeek.year ||
+  (nextWeek.year === todayWeek.year && nextWeek.week > todayWeek.week);
+
+// Anything inside the rolling 8-day buffer is in recent_check (per-check).
+// Older weeks are check_daily-only; v0.2 will render daily bars from there.
+const eightDaysAgoSec = Math.floor(Date.now() / 1000) - 8 * 86400;
+const denseAvailable = weekEndSec > eightDaysAgoSec;
+
+try {
+  monitor = await getMonitor(id);
+  if (monitor) {
+    if (denseAvailable) {
+      const all = await db()
+        .prepare(`SELECT * FROM recent_check WHERE monitor_id = ? AND started_at >= ? AND started_at < ? ORDER BY started_at DESC`)
+        .bind(id, weekStartSec, weekEndSec)
+        .all<RecentCheckRow>();
+      weekChecks = all.results;
+      recent = all.results.slice(0, 60).reverse();
+    } else {
+      // Older week → no per-check data. Leave weekChecks empty so the chart
+      // shows "no data" buckets; v0.2 will fall back to check_daily.
+      weekChecks = [];
+      recent = [];
+    }
+
+    const inc = await db()
+      .prepare(`SELECT id, opened_at, resolved_at, cause FROM incident
+                 WHERE monitor_id = ? ORDER BY opened_at DESC LIMIT 20`)
+      .bind(id)
+      .all<IncidentEntry>();
+    pastIncidents = inc.results.filter((i) => i.resolved_at !== null);
+    openIncidents = inc.results.filter((i) => i.resolved_at === null);
+  }
+} catch {
+  dbReady = false;
+}
+
+if (!monitor && dbReady) return Astro.redirect('/');
+
+const m = monitor!;
+const httpCfg = m?.type === 'http' ? (m.parsed_config as HttpMonitorConfig) : null;
+const hbCfg = m?.type === 'heartbeat' ? (m.parsed_config as HeartbeatMonitorConfig) : null;
+
+function statusToken(s: string | undefined) {
+  switch (s) {
+    case 'up':       return { dot: 'bg-up shadow-[0_0_10px_1px_rgba(107,143,94,0.55)]',  text: 'text-up' };
+    case 'down':     return { dot: 'bg-down shadow-[0_0_10px_1px_rgba(168,57,44,0.55)]', text: 'text-down' };
+    case 'paused':   return { dot: 'bg-paused',                                          text: 'text-paused' };
+    default:         return { dot: 'bg-ink-500',                                         text: 'text-ink-500' };
+  }
+}
+const s = statusToken(m.paused ? 'paused' : m.state?.status);
+
+function intervalLabel(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.round(seconds / 3600)}h`;
+  return `${Math.round(seconds / 86400)}d`;
+}
+
+function fmtTime(unix: number): string {
+  const d = new Date(unix * 1000);
+  return d.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+}
+
+const totalChecks = recent.length;
+const okChecks = recent.filter((r) => r.status === 'ok').length;
+const uptime = totalChecks > 0 ? (okChecks / totalChecks) * 100 : null;
+const avgLatency = recent.filter((r) => r.latency_ms != null).reduce((sum, r) => sum + (r.latency_ms ?? 0), 0) / Math.max(1, recent.filter((r) => r.latency_ms != null).length);
+const maxLatencyForChart = Math.max(200, ...recent.map((r) => r.latency_ms ?? 0));
+---
+<Layout title={`${m.name} — Scarecrow`}>
+  <div class="mx-auto max-w-5xl px-6 py-8">
+    <a href="/" class="text-ink-500 text-sm hover:text-ink-300">← Monitors</a>
+    <div class="mt-2 flex items-start justify-between flex-wrap gap-4">
+      <div>
+        <div class="flex items-center gap-3">
+          <span class={`inline-block w-2.5 h-2.5 rounded-full ${s.dot}`}></span>
+          <h1 class="text-2xl font-bold tracking-tight">{m.name}</h1>
+          <span class="px-2 py-0.5 rounded-md text-xs bg-ink-800 text-ink-300">{m.type}</span>
+          {m.paused ? <span class="px-2 py-0.5 rounded-md text-xs bg-ink-800 text-paused">paused</span> : null}
+        </div>
+        <div class="text-ink-500 font-mono text-sm mt-1">
+          {httpCfg?.url}
+          {hbCfg?.cron_expression ? `cron: ${hbCfg.cron_expression}` : ''}
+          {hbCfg && !hbCfg.cron_expression ? `every ${intervalLabel(m.interval_seconds)}` : ''}
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href={`/monitor/${m.id}/edit`} class="px-3 py-2 rounded-md border border-ink-700 hover:border-ink-500 text-ink-200 text-sm">Edit</a>
+        <form method="POST" action={`/api/v1/monitors/${m.id}/toggle`}>
+          <button class="px-3 py-2 rounded-md border border-ink-700 hover:border-ink-500 text-ink-200 text-sm">{m.paused ? 'Resume' : 'Pause'}</button>
+        </form>
+        <form method="POST" action={`/api/v1/monitors/${m.id}/delete`} onsubmit="return confirm('Delete this monitor?')">
+          <button class="px-3 py-2 rounded-md border border-down-soft hover:border-down text-down text-sm">Delete</button>
+        </form>
+      </div>
+    </div>
+
+    {hbCfg && (
+      <div class="mt-6 rounded-md border border-ink-800 bg-ink-900/40 p-4">
+        <div class="text-ink-500 text-xs uppercase tracking-wide mb-2">Ping URL</div>
+        <code class="font-mono text-sm text-ink-200 break-all">/h/&lt;token&gt; — token shown once at creation, stored hashed in D1</code>
+        <p class="text-ink-600 text-xs mt-2">Lost the token? Rotate it from settings (coming in v0.2).</p>
+      </div>
+    )}
+
+    <div class="mt-6 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+      <div class="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+        <div class="text-ink-500 text-xs uppercase tracking-wide">This-week uptime</div>
+        <div class="text-2xl font-bold mt-1 text-up font-mono">{uptime != null ? `${uptime.toFixed(2)}%` : '—'}</div>
+      </div>
+      <div class="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+        <div class="text-ink-500 text-xs uppercase tracking-wide">Schedule</div>
+        <div class="text-2xl font-bold mt-1 truncate" title={(httpCfg?.cron_expression ?? hbCfg?.cron_expression ?? intervalLabel(m.interval_seconds))}>
+          {httpCfg?.cron_expression ?? hbCfg?.cron_expression ?? intervalLabel(m.interval_seconds)}
+        </div>
+      </div>
+      <div class="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+        <div class="text-ink-500 text-xs uppercase tracking-wide">Avg latency</div>
+        <div class="text-2xl font-bold mt-1 font-mono">{Number.isFinite(avgLatency) && avgLatency > 0 ? `${Math.round(avgLatency)}ms` : '—'}</div>
+      </div>
+      <div class="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+        <div class="text-ink-500 text-xs uppercase tracking-wide">Open incidents</div>
+        <div class={`text-2xl font-bold mt-1 ${openIncidents.length > 0 ? 'text-down' : 'text-ink-300'}`}>{openIncidents.length}</div>
+      </div>
+      <div class="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+        <div class="text-ink-500 text-xs uppercase tracking-wide">Started</div>
+        <div class="text-base font-bold mt-1 font-mono" title={fmtUtcShort(m.created_at * 1000)}>{fmtUtcShort(m.created_at * 1000)}</div>
+      </div>
+      <div class="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+        <div class="text-ink-500 text-xs uppercase tracking-wide">Next {m.type === 'heartbeat' ? 'expected' : 'check'}</div>
+        {(() => {
+          const n = nextExpectedAt(m);
+          if (n == null) return <div class="text-base font-bold mt-1 text-ink-500">paused</div>;
+          return (
+            <>
+              <div class="text-base font-bold mt-1 font-mono" title={fmtUtcShort(n)}>{relTimeUntil(n)}</div>
+              <div class="text-ink-500 text-[11px] mt-0.5 font-mono">{fmtUtcShort(n)}</div>
+            </>
+          );
+        })()}
+      </div>
+    </div>
+
+    <div class="mt-8">
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <a href={`/monitor/${m.id}?week=${formatWeekParam(prev.year, prev.week)}`}
+           class="px-3 py-1.5 rounded-md border border-ink-800 hover:border-ink-600 text-ink-300 text-sm">← {formatWeekParam(prev.year, prev.week)}</a>
+        <div class="text-center">
+          <div class="font-semibold text-ink-100">{formatWeekRangeLabel(weekStart)}</div>
+          <div class="text-ink-500 text-xs font-mono">{formatWeekParam(view.year, view.week)} {isCurrentWeek ? '· current' : ''}</div>
+        </div>
+        {futureWeek
+          ? <span class="px-3 py-1.5 rounded-md border border-ink-800 text-ink-700 text-sm cursor-not-allowed">future →</span>
+          : <a href={`/monitor/${m.id}?week=${formatWeekParam(nextWeek.year, nextWeek.week)}`}
+               class="px-3 py-1.5 rounded-md border border-ink-800 hover:border-ink-600 text-ink-300 text-sm">{formatWeekParam(nextWeek.year, nextWeek.week)} →</a>}
+      </div>
+      {!denseAvailable && (
+        <div class="mb-2 rounded-md border border-ink-800 bg-ink-900/30 p-3 text-xs text-ink-500">
+          Per-check detail is kept for 8 days; older weeks will show daily summaries from <code class="font-mono">check_daily</code> in v0.2.
+        </div>
+      )}
+      <UptimeChart checks={weekChecks} nowSec={Math.min(weekEndSec, Math.floor(Date.now() / 1000))} />
+    </div>
+
+    <div class="mt-8 rounded-lg border border-ink-800 bg-ink-900/30 p-5">
+      <div class="flex items-center justify-between mb-3">
+        <div class="font-medium">Last {recent.length || 60} checks</div>
+        <div class="text-ink-500 text-xs">most recent →</div>
+      </div>
+      {recent.length === 0 ? (
+        <div class="h-20 flex items-center justify-center text-ink-500 text-sm">No checks yet — first check runs after the next cron tick.</div>
+      ) : (
+        <div class="flex items-end gap-0.5 h-20">
+          {recent.map((r) => (
+            <div class="flex-1 group relative">
+              <div
+                class={`w-full rounded-sm ${r.status === 'ok' ? 'bg-up/80' : 'bg-down/85'}`}
+                style={`height: ${Math.max(8, Math.min(100, ((r.latency_ms ?? 30) / maxLatencyForChart) * 100))}%`}
+                title={`${r.status} · ${r.latency_ms ?? '?'}ms · ${fmtTime(r.started_at)}`}
+              ></div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div class="flex items-center gap-4 text-xs text-ink-500 mt-3">
+        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-up/80"></span>OK</span>
+        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-down/85"></span>Failed</span>
+      </div>
+    </div>
+
+    <div class="mt-8 rounded-lg border border-ink-800 overflow-hidden">
+      <div class="bg-ink-900/60 px-4 py-2 text-xs uppercase tracking-wide text-ink-400 font-medium">Recent incidents</div>
+      <div class="divide-y divide-ink-800/60">
+        {openIncidents.length === 0 && pastIncidents.length === 0 && (
+          <div class="px-4 py-6 text-center text-ink-500 text-sm">No incidents yet.</div>
+        )}
+        {[...openIncidents, ...pastIncidents].map((i) => (
+          <a href={`/incident/${i.id}`} class="px-4 py-3 flex items-center justify-between hover:bg-ink-900/40 transition-colors">
+            <div>
+              <div class="text-sm text-ink-100">{i.cause ?? 'Failure'}</div>
+              <div class="text-xs text-ink-500">
+                opened {fmtTime(i.opened_at)}
+                {i.resolved_at ? ` · resolved ${fmtTime(i.resolved_at)}` : <span class="text-down"> · open</span>}
+              </div>
+            </div>
+            <span class="text-ink-500 text-xs hover:text-ink-300">view →</span>
+          </a>
+        ))}
+      </div>
+    </div>
+  </div>
+</Layout>

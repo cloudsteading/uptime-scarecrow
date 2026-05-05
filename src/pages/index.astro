@@ -1,0 +1,190 @@
+---
+import Layout from '~/layouts/Layout.astro';
+import { listMonitors, type MonitorWithState } from '~/lib/monitors';
+import type { HeartbeatMonitorConfig, HttpMonitorConfig } from '~/lib/db';
+import { db } from '~/lib/db';
+
+let monitors: MonitorWithState[] = [];
+let openIncidents: { id: number; monitor_id: number; opened_at: number; cause: string | null; monitor_name: string }[] = [];
+let dbReady = true;
+try {
+  monitors = await listMonitors();
+  const r = await db()
+    .prepare(
+      `SELECT i.id, i.monitor_id, i.opened_at, i.cause, m.name AS monitor_name
+         FROM incident i JOIN monitor m ON m.id = i.monitor_id
+         WHERE i.resolved_at IS NULL
+         ORDER BY i.opened_at DESC`,
+    )
+    .all<{ id: number; monitor_id: number; opened_at: number; cause: string | null; monitor_name: string }>();
+  openIncidents = r.results;
+} catch {
+  dbReady = false;
+}
+
+function fmtDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+  return `${Math.floor(seconds / 86400)}d`;
+}
+
+const counts = {
+  total: monitors.length,
+  up: monitors.filter((m) => m.state?.status === 'up').length,
+  down: monitors.filter((m) => m.state?.status === 'down').length,
+  paused: monitors.filter((m) => m.paused).length,
+};
+
+const user = Astro.locals.user;
+
+function statusStyles(s: string | undefined) {
+  switch (s) {
+    case 'up':       return { dot: 'bg-up shadow-[0_0_8px_1px_rgba(107,143,94,0.45)]',  text: 'text-up',       label: 'Up' };
+    case 'down':     return { dot: 'bg-down shadow-[0_0_8px_1px_rgba(168,57,44,0.45)]', text: 'text-down',     label: 'Down' };
+    case 'degraded': return { dot: 'bg-degraded',                                       text: 'text-degraded', label: 'Degraded' };
+    case 'paused':   return { dot: 'bg-paused',                                         text: 'text-paused',   label: 'Paused' };
+    default:         return { dot: 'bg-ink-500',                                        text: 'text-ink-500',  label: 'Unknown' };
+  }
+}
+
+function intervalLabel(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.round(seconds / 3600)}h`;
+  return `${Math.round(seconds / 86400)}d`;
+}
+
+function relTime(unix: number | null | undefined): string {
+  if (!unix) return '—';
+  const diff = Math.floor(Date.now() / 1000) - unix;
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
+function targetLabel(m: MonitorWithState): string {
+  if (m.type === 'http') return (m.parsed_config as HttpMonitorConfig).url ?? '—';
+  const cfg = m.parsed_config as HeartbeatMonitorConfig;
+  return cfg.cron_expression ? `cron: ${cfg.cron_expression}` : `/h/<token>`;
+}
+---
+<Layout title="Monitors — Scarecrow">
+  <div class="mx-auto max-w-6xl px-6 py-8">
+    <div class="flex items-center justify-between flex-wrap gap-4">
+      <div>
+        <h1 class="text-2xl font-bold tracking-tight">Monitors</h1>
+        <p class="text-ink-400 text-sm mt-1">
+          Signed in as <span class="font-mono text-ink-200">{user?.email ?? 'unknown'}</span> · {counts.total} monitor{counts.total === 1 ? '' : 's'}
+        </p>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="/monitor/new?type=http" class="px-3 py-2 rounded-md bg-accent-600 hover:bg-accent-500 text-white text-sm font-medium">+ HTTP monitor</a>
+        <a href="/monitor/new?type=heartbeat" class="px-3 py-2 rounded-md border border-ink-700 hover:border-ink-500 text-ink-200 text-sm">+ Heartbeat</a>
+      </div>
+    </div>
+
+    {!dbReady && (
+      <div class="mt-6 rounded-md border border-degraded-soft bg-degraded-soft/20 p-4 text-sm text-degraded">
+        D1 binding not available. Run <code class="font-mono text-ink-200">npm run db:migrate:local</code> after creating the database to start tracking real monitors.
+      </div>
+    )}
+
+    {openIncidents.length > 0 && (
+      <section class="mt-6 rounded-lg border border-down-soft bg-down-soft/15 overflow-hidden">
+        <div class="px-4 py-2 flex items-baseline justify-between bg-down-soft/30">
+          <div class="text-down text-xs uppercase tracking-wide font-medium">
+            {openIncidents.length} open incident{openIncidents.length === 1 ? '' : 's'}
+          </div>
+          <a href="/incidents" class="text-down text-xs hover:underline">View all →</a>
+        </div>
+        <ul class="divide-y divide-down-soft/30">
+          {openIncidents.slice(0, 5).map((i) => {
+            const dur = Math.floor(Date.now() / 1000) - i.opened_at;
+            return (
+              <li>
+                <a href={`/incident/${i.id}`} class="flex items-center gap-3 px-4 py-3 hover:bg-down-soft/20">
+                  <span class="inline-block w-2 h-2 rounded-full bg-down shadow-[0_0_8px_1px_rgba(168,57,44,0.45)]"></span>
+                  <span class="font-medium text-ink-100">{i.monitor_name}</span>
+                  <span class="text-ink-400 text-sm truncate max-w-[40ch]">{i.cause ?? 'Failure'}</span>
+                  <span class="ml-auto text-down font-mono text-sm">down {fmtDuration(dur)}</span>
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+    )}
+
+    <div class="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div class="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+        <div class="text-ink-500 text-xs uppercase tracking-wide">Total</div>
+        <div class="text-2xl font-bold mt-1">{counts.total}</div>
+      </div>
+      <div class="rounded-lg border border-up-soft/50 bg-up-soft/20 p-4">
+        <div class="text-up text-xs uppercase tracking-wide">Up</div>
+        <div class="text-2xl font-bold mt-1 text-up">{counts.up}</div>
+      </div>
+      <div class="rounded-lg border border-down-soft/50 bg-down-soft/20 p-4">
+        <div class="text-down text-xs uppercase tracking-wide">Down</div>
+        <div class="text-2xl font-bold mt-1 text-down">{counts.down}</div>
+      </div>
+      <div class="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+        <div class="text-ink-500 text-xs uppercase tracking-wide">Paused</div>
+        <div class="text-2xl font-bold mt-1 text-ink-300">{counts.paused}</div>
+      </div>
+    </div>
+
+    {monitors.length === 0 ? (
+      <div class="mt-10 rounded-lg border border-dashed border-ink-700 bg-ink-900/20 p-12 text-center">
+        <div class="text-ink-300 font-medium">No monitors yet.</div>
+        <p class="text-ink-500 text-sm mt-2">Add an HTTP check or a cron heartbeat to get started.</p>
+        <div class="mt-5 flex items-center justify-center gap-2">
+          <a href="/monitor/new?type=http" class="px-3 py-2 rounded-md bg-accent-600 hover:bg-accent-500 text-white text-sm font-medium">Add HTTP monitor</a>
+          <a href="/monitor/new?type=heartbeat" class="px-3 py-2 rounded-md border border-ink-700 hover:border-ink-500 text-ink-200 text-sm">Add heartbeat</a>
+        </div>
+      </div>
+    ) : (
+      <div class="mt-8 rounded-lg border border-ink-800 overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-ink-900/60 text-ink-400 text-xs uppercase tracking-wide">
+            <tr>
+              <th class="text-left font-medium px-4 py-3">Status</th>
+              <th class="text-left font-medium px-4 py-3">Name</th>
+              <th class="text-left font-medium px-4 py-3 hidden sm:table-cell">Type</th>
+              <th class="text-left font-medium px-4 py-3 hidden md:table-cell">Interval</th>
+              <th class="text-right font-medium px-4 py-3">Last check</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-ink-800/60">
+            {monitors.map((m) => {
+              const s = statusStyles(m.paused ? 'paused' : m.state?.status);
+              const href = `/monitor/${m.id}`;
+              return (
+                <tr class="relative group hover:bg-ink-900/40 transition-colors cursor-pointer">
+                  <td class="px-4 py-3">
+                    <a href={href} class="absolute inset-0 z-10" aria-label={`Open ${m.name}`}></a>
+                    <div class="flex items-center gap-2">
+                      <span class={`inline-block w-2 h-2 rounded-full ${s.dot}`}></span>
+                      <span class={`text-xs ${s.text}`}>{s.label}</span>
+                    </div>
+                  </td>
+                  <td class="px-4 py-3">
+                    <div class="font-medium text-ink-100 group-hover:text-ink-50">{m.name}</div>
+                    <div class="text-ink-500 font-mono text-xs truncate max-w-[28ch] sm:max-w-[44ch]">{targetLabel(m)}</div>
+                  </td>
+                  <td class="px-4 py-3 hidden sm:table-cell">
+                    <span class="px-2 py-0.5 rounded-md text-xs bg-ink-800 text-ink-300">{m.type}</span>
+                  </td>
+                  <td class="px-4 py-3 hidden md:table-cell text-ink-400">{intervalLabel(m.interval_seconds)}</td>
+                  <td class="px-4 py-3 text-right text-ink-400">{relTime(m.state?.last_check_at)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </div>
+</Layout>

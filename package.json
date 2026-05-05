@@ -1,0 +1,42 @@
+{
+  "name": "cs-uptime-monitor",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "dev:scheduler": "wrangler dev -c wrangler.scheduler.jsonc --port 8788 --test-scheduled",
+    "build": "astro build",
+    "preview": "wrangler dev",
+    "astro": "astro",
+    "db:create": "wrangler d1 create cs-uptime-db",
+    "db:migrate:local": "wrangler d1 migrations apply cs-uptime-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply cs-uptime-db --remote",
+    "tick:arm": "curl -fsS 'http://localhost:8788/__scheduled?cron=*+*+*+*+*'",
+    "tick:rollup": "curl -fsS 'http://localhost:8788/__scheduled?cron=5+0+*+*+*'",
+    "tick:prune": "curl -fsS 'http://localhost:8788/__scheduled?cron=15+0+*+*+*'",
+    "deploy:app": "astro build && wrangler deploy",
+    "deploy:scheduler": "wrangler deploy -c wrangler.scheduler.jsonc",
+    "deploy": "npm run deploy:scheduler && npm run deploy:app"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "^13.1.10",
+    "@tailwindcss/vite": "^4.2.2",
+    "astro": "^6.1.8",
+    "tailwindcss": "^4.2.2"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.9",
+    "@cloudflare/workers-types": "^4.20260420.1",
+    "@fontsource/inter": "^5.2.8",
+    "@fontsource/jetbrains-mono": "^5.2.8",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.83.0"
+  },
+  "overrides": {
+    "vite": "^7"
+  }
+}
