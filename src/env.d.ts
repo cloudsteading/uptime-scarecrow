@@ -24,6 +24,7 @@ declare namespace Cloudflare {
     NOTIFY_QUEUE: Queue<NotifyMessage>;
     MONITOR_SCHEDULER: DurableObjectNamespace;
     HEARTBEAT_TRACKER: DurableObjectNamespace;
+    HEARTBEAT_RATELIMIT?: RateLimit;
     ASSETS?: Fetcher;
 
     APP_NAME: string;
@@ -36,6 +37,11 @@ declare namespace Cloudflare {
     BOOTSTRAP_ADMIN_EMAILS?: string;
     EMAIL_FROM?: string;
     APP_BASE_URL?: string;
+
+    // Dev-only: set to '1' in .dev.vars to skip Cloudflare Access and run with
+    // a fake local user. NEVER set this in a deployed environment — it grants
+    // admin to every visitor.
+    DEV_NO_AUTH?: string;
   }
 }
 

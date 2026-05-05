@@ -1,5 +1,15 @@
 # Local development
 
+## Auth bypass for local dev
+
+By default the middleware (`src/middleware.ts`) requires Cloudflare Access on every authed route. To browse the dashboard locally without setting up Access, create a `.dev.vars` file at the repo root:
+
+```
+DEV_NO_AUTH=1
+```
+
+This var must NEVER be set in deployed environments — it grants admin to every visitor. Production deploys set `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` instead (via `wrangler secret put`), and any deploy missing those secrets without `DEV_NO_AUTH` returns 503.
+
 ## Two Workers, two `wrangler dev` sessions
 
 Scarecrow ships as two Workers in one repo:

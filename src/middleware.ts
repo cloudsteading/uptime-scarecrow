@@ -15,7 +15,8 @@ function isBypassed(path: string): boolean {
 }
 
 export const onRequest = defineMiddleware(async (ctx, next) => {
-  const path = new URL(ctx.request.url).pathname;
+  const url = new URL(ctx.request.url);
+  const path = url.pathname;
 
   if (isBypassed(path)) {
     ctx.locals.user = null;
@@ -23,12 +24,25 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
   }
 
   // Dev mode: when Access isn't configured we render with a fake local user
-  // so the UI is browseable without infra setup. Production deploys MUST set
-  // ACCESS_TEAM_DOMAIN + ACCESS_AUD.
+  // so the UI is browseable without infra setup. Gated by an explicit
+  // DEV_NO_AUTH=1 var (set in .dev.vars only) — never fall back to a
+  // hostname check, because request.url's hostname is derived from the
+  // client-controlled Host header. Production deploys never set this var,
+  // so the bypass is unreachable regardless of what headers a client sends.
   const accessConfigured = !!env.ACCESS_TEAM_DOMAIN && !!env.ACCESS_AUD;
+  const devBypass = env.DEV_NO_AUTH === '1';
   const dbReady = !!env.DB;
 
   if (!accessConfigured) {
+    if (!devBypass) {
+      console.error(
+        'Access not configured (ACCESS_TEAM_DOMAIN/ACCESS_AUD missing) and DEV_NO_AUTH not set — refusing request',
+      );
+      return new Response(
+        'Service misconfigured: Cloudflare Access is not set up. Set ACCESS_TEAM_DOMAIN and ACCESS_AUD secrets.',
+        { status: 503 },
+      );
+    }
     if (dbReady) {
       try {
         const user = await upsertUser('local-dev@example.com', env.BOOTSTRAP_ADMIN_EMAILS);

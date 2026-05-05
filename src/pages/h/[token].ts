@@ -11,6 +11,15 @@ const handler: APIRoute = async (ctx) => {
     return new Response('not found', { status: 404 });
   }
 
+  // Per-token rate limit. Legitimate heartbeats fire on a cron (typically
+  // every 1–15 min); 30/min is well above any real schedule and caps spam
+  // damage from a leaked token. Limited by token rather than IP so a single
+  // misbehaving cron source can't take out the global pool.
+  if (env.HEARTBEAT_RATELIMIT) {
+    const { success } = await env.HEARTBEAT_RATELIMIT.limit({ key: token });
+    if (!success) return new Response('rate limited', { status: 429 });
+  }
+
   // Detect /h/{token}/start, /h/{token}/fail trailing path. The Astro [token]
   // route only matches a single segment, so /h/{token}/fail will 404 unless
   // we add a separate route file. v0.1: simple ingest only — `/start` and

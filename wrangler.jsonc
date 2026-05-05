@@ -52,5 +52,16 @@
   "vars": {
     "APP_NAME": "cs-uptime-monitor",
     "APP_VERSION": "0.1.0"
+  },
+
+  "unsafe": {
+    "bindings": [
+      {
+        "name": "HEARTBEAT_RATELIMIT",
+        "type": "ratelimit",
+        "namespace_id": "1001",
+        "simple": { "limit": 30, "period": 60 }
+      }
+    ]
   }
 }
