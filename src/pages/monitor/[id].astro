@@ -104,6 +104,17 @@ const okChecks = recent.filter((r) => r.status === 'ok').length;
 const uptime = totalChecks > 0 ? (okChecks / totalChecks) * 100 : null;
 const avgLatency = recent.filter((r) => r.latency_ms != null).reduce((sum, r) => sum + (r.latency_ms ?? 0), 0) / Math.max(1, recent.filter((r) => r.latency_ms != null).length);
 const maxLatencyForChart = Math.max(200, ...recent.map((r) => r.latency_ms ?? 0));
+
+// Time-axis layout for the Last-N-checks chart. We place each check at its real
+// `started_at` so visible gaps reflect actual outages or scheduler downtime.
+// Right edge = now (so a missing recent block shows as blank space on the right
+// rather than hiding the gap by stretching the last bar to the edge).
+const nowSec = Math.floor(Date.now() / 1000);
+const recentTEnd = nowSec;
+const recentTStart = recent.length > 0
+  ? Math.min(recent[0].started_at, recentTEnd - m.interval_seconds * 2)
+  : recentTEnd - 3600;
+const recentSpan = Math.max(1, recentTEnd - recentTStart);
 ---
 <Layout title={`${m.name} — Uptime Scarecrow`}>
   <div class="mx-auto max-w-5xl px-6 py-8">
@@ -203,26 +214,34 @@ const maxLatencyForChart = Math.max(200, ...recent.map((r) => r.latency_ms ?? 0)
     <div class="mt-8 rounded-lg border border-ink-800 bg-ink-900/30 p-5">
       <div class="flex items-center justify-between mb-3">
         <div class="font-medium">Last {recent.length || 60} checks</div>
-        <div class="text-ink-500 text-xs">most recent →</div>
+        <div class="text-ink-500 text-xs">{recent.length > 0 ? `${fmtUtcShort(recentTStart * 1000)} → now` : 'most recent →'}</div>
       </div>
       {recent.length === 0 ? (
         <div class="h-20 flex items-center justify-center text-ink-500 text-sm">No checks yet — first check runs after the next cron tick.</div>
       ) : (
-        <div class="flex items-end gap-0.5 h-20">
-          {recent.map((r) => (
-            <div class="flex-1 group relative">
-              <div
-                class={`w-full rounded-sm ${r.status === 'ok' ? 'bg-up/80' : 'bg-down/85'}`}
-                style={`height: ${Math.max(8, Math.min(100, ((r.latency_ms ?? 30) / maxLatencyForChart) * 100))}%`}
-                title={`${r.status} · ${r.latency_ms ?? '?'}ms · ${fmtTime(r.started_at)}`}
-              ></div>
-            </div>
-          ))}
-        </div>
+        <svg viewBox="0 0 1000 80" class="w-full block h-20" preserveAspectRatio="none" role="img" aria-label="Recent checks on a real-time axis">
+          {recent.map((r) => {
+            const x = ((r.started_at - recentTStart) / recentSpan) * 1000;
+            const h = Math.max(6, Math.min(80, ((r.latency_ms ?? 30) / maxLatencyForChart) * 80));
+            return (
+              <rect
+                x={x - 2}
+                y={80 - h}
+                width={4}
+                height={h}
+                rx={1}
+                class={r.status === 'ok' ? 'fill-up/80' : 'fill-down/85'}
+              >
+                <title>{`${r.status} · ${r.latency_ms ?? '?'}ms · ${fmtTime(r.started_at)}`}</title>
+              </rect>
+            );
+          })}
+        </svg>
       )}
       <div class="flex items-center gap-4 text-xs text-ink-500 mt-3">
         <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-up/80"></span>OK</span>
         <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-down/85"></span>Failed</span>
+        <span class="ml-auto font-mono text-[11px] text-ink-600">x-axis = time (gaps mean no checks)</span>
       </div>
     </div>
 

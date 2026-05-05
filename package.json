@@ -14,9 +14,10 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "concurrently --names APP,SCHED --prefix-colors cyan,magenta --kill-others-on-fail \"npm:dev:app\" \"npm:dev:scheduler\"",
+    "dev": "concurrently --names APP,SCHED,ARM --prefix-colors cyan,magenta,yellow --kill-others-on-fail \"npm:dev:app\" \"npm:dev:scheduler\" \"npm:dev:arm-once\"",
     "dev:app": "astro dev --port 4322",
     "dev:scheduler": "wrangler dev -c wrangler.scheduler.jsonc --port 8788 --test-scheduled",
+    "dev:arm-once": "until curl -fsS -o /dev/null 'http://localhost:8788/__scheduled?cron=*+*+*+*+*'; do sleep 2; done; echo 'alarms armed via per-minute cron tick'",
     "build": "astro build",
     "preview": "wrangler dev",
     "astro": "astro",

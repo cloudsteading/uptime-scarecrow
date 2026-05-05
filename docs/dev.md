@@ -25,10 +25,12 @@ The app Worker has DO bindings declared with `script_name: "uptime-scarecrow-sch
 npm run dev
 ```
 
-Runs both processes concurrently with prefixed output (`[APP]` cyan, `[SCHED]` magenta). Ctrl+C cleans up both. Default ports:
+Runs both processes concurrently with prefixed output (`[APP]` cyan, `[SCHED]` magenta, `[ARM]` yellow). Ctrl+C cleans up both. Default ports:
 
 - **App (dashboard + UI):** http://localhost:4322 (Astro auto-falls-through if taken)
 - **Scheduler:** http://localhost:8788
+
+The `[ARM]` task polls the scheduler until it's up, then fires the per-minute cron once (`/__scheduled?cron=*+*+*+*+*`) so DO alarms get armed and per-monitor checks start running. Without this, a fresh `wrangler dev` would sit idle until you ran `npm run tick:arm` manually — wrangler doesn't fire crons on wall-clock in dev. (You can still run `tick:arm` again any time to re-ensure alarms.)
 
 If you only need one side, `npm run dev:app` or `npm run dev:scheduler` start them individually.
 
