@@ -57,8 +57,8 @@ const user = Astro.locals.user;
       </div>
     </footer>
 
-    <!-- Shared floating tooltip for any element with [data-tip]. Replaces native SVG <title> hovers (which have a long delay and unstyled UA chrome). -->
-    <div id="hover-tip" role="tooltip" class="hidden fixed z-50 pointer-events-none px-2.5 py-1.5 rounded-md border border-ink-700 bg-ink-950/95 backdrop-blur text-[11px] font-mono text-ink-100 shadow-[0_4px_12px_rgba(0,0,0,0.5)] whitespace-nowrap"></div>
+    <!-- Shared floating tooltip for any element with [data-tip]. Replaces native SVG <title> hovers (which have a long delay and unstyled UA chrome). data-tip values may contain \n; the whitespace-pre-line below renders them as line breaks. -->
+    <div id="hover-tip" role="tooltip" class="hidden fixed z-50 pointer-events-none px-2.5 py-1.5 rounded-md border border-ink-700 bg-ink-950/95 backdrop-blur text-[11px] font-mono text-ink-100 shadow-[0_4px_12px_rgba(0,0,0,0.5)] whitespace-pre-line max-w-sm leading-relaxed"></div>
     <script is:inline>
       (() => {
         const tip = document.getElementById('hover-tip');
