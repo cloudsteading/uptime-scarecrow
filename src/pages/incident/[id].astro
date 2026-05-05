@@ -122,7 +122,7 @@ function statusPill(s: string) {
     <div class="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
       <div class="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
         <div class="text-ink-500 text-xs uppercase tracking-wide">Opened</div>
-        <div class="text-base font-bold mt-1 font-mono">{fmtAbs(incident.opened_at)}</div>
+        <time class="text-base font-bold mt-1 font-mono block" datetime={new Date(incident.opened_at * 1000).toISOString()} data-ts={incident.opened_at}>{fmtAbs(incident.opened_at)}</time>
       </div>
       <div class="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
         <div class="text-ink-500 text-xs uppercase tracking-wide">{isOpen ? 'Ongoing for' : 'Duration'}</div>
@@ -130,9 +130,9 @@ function statusPill(s: string) {
       </div>
       <div class="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
         <div class="text-ink-500 text-xs uppercase tracking-wide">Resolved</div>
-        <div class="text-base font-bold mt-1 font-mono">
-          {incident.resolved_at ? fmtAbs(incident.resolved_at) : <span class="text-down">— still open</span>}
-        </div>
+        {incident.resolved_at
+          ? <time class="text-base font-bold mt-1 font-mono block" datetime={new Date(incident.resolved_at * 1000).toISOString()} data-ts={incident.resolved_at}>{fmtAbs(incident.resolved_at)}</time>
+          : <div class="text-base font-bold mt-1 font-mono text-down">— still open</div>}
       </div>
       <div class="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
         <div class="text-ink-500 text-xs uppercase tracking-wide">Notifications</div>

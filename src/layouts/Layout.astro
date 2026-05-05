@@ -57,17 +57,48 @@ const user = Astro.locals.user;
       </div>
     </footer>
 
-    <!-- Shared floating tooltip for any element with [data-tip]. Replaces native SVG <title> hovers (which have a long delay and unstyled UA chrome). data-tip values may contain \n; the whitespace-pre-line below renders them as line breaks. -->
+    <!-- Shared floating tooltip for any element with [data-tip]. Replaces native SVG <title> hovers (which have a long delay and unstyled UA chrome). data-tip values may contain \n (rendered as line breaks via whitespace-pre-line) and {LOCAL:<unix>} placeholders that get replaced with the viewer's local time on hover. -->
     <div id="hover-tip" role="tooltip" class="hidden fixed z-50 pointer-events-none px-2.5 py-1.5 rounded-md border border-ink-700 bg-ink-950/95 backdrop-blur text-[11px] font-mono text-ink-100 shadow-[0_4px_12px_rgba(0,0,0,0.5)] whitespace-pre-line max-w-sm leading-relaxed"></div>
     <script is:inline>
       (() => {
+        // Local time is the viewer's machine clock — server can't know it, so
+        // we always emit UTC at SSR and let this script append local alongside.
+        function fmtLocal(sec) {
+          const d = new Date(sec * 1000);
+          if (Number.isNaN(d.getTime())) return '';
+          return d.toLocaleString(undefined, {
+            weekday: 'short', month: 'short', day: 'numeric',
+            hour: 'numeric', minute: '2-digit',
+            timeZoneName: 'short',
+          });
+        }
+        function expandLocal(text) {
+          return text.replace(/\{LOCAL:(\d+)\}/g, (_, s) => fmtLocal(parseInt(s, 10)));
+        }
+
+        // Static elements with data-ts get a sibling <span> with the local time.
+        function enhanceStatic(root) {
+          (root || document).querySelectorAll('[data-ts]:not([data-ts-done])').forEach((el) => {
+            el.setAttribute('data-ts-done', '1');
+            const sec = parseInt(el.getAttribute('data-ts') || '', 10);
+            if (!Number.isFinite(sec)) return;
+            const local = document.createElement('span');
+            local.className = 'block text-ink-600 text-[10px] font-mono mt-0.5';
+            local.textContent = '↳ ' + fmtLocal(sec) + ' (local)';
+            el.parentNode.insertBefore(local, el.nextSibling);
+          });
+        }
+        enhanceStatic(document);
+        // Re-run after Astro view transitions or any later DOM mutations.
+        document.addEventListener('astro:page-load', () => enhanceStatic(document));
+
+        // Tooltip overlay
         const tip = document.getElementById('hover-tip');
         if (!tip) return;
         let active = null;
         function show(el, x, y) {
-          tip.textContent = el.getAttribute('data-tip') || '';
+          tip.textContent = expandLocal(el.getAttribute('data-tip') || '');
           tip.classList.remove('hidden');
-          // Anchor above the cursor by default; flip below if near top edge.
           const rect = tip.getBoundingClientRect();
           const margin = 10;
           let left = x - rect.width / 2;

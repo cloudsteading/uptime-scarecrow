@@ -233,17 +233,18 @@ const recentSpan = Math.max(1, recentTEnd - recentTStart);
       </div>
       <div class="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
         <div class="text-ink-500 text-xs uppercase tracking-wide">Started</div>
-        <div class="text-base font-bold mt-1 font-mono" title={fmtUtcShort(m.created_at * 1000)}>{fmtUtcShort(m.created_at * 1000)}</div>
+        <time class="text-base font-bold mt-1 font-mono block" datetime={new Date(m.created_at * 1000).toISOString()} data-ts={m.created_at}>{fmtUtcShort(m.created_at * 1000)}</time>
       </div>
       <div class="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
         <div class="text-ink-500 text-xs uppercase tracking-wide">Next {m.type === 'heartbeat' ? 'expected' : 'check'}</div>
         {(() => {
           const n = nextExpectedAt(m);
           if (n == null) return <div class="text-base font-bold mt-1 text-ink-500">paused</div>;
+          const nSec = Math.floor(n / 1000);
           return (
             <>
-              <div class="text-base font-bold mt-1 font-mono" title={fmtUtcShort(n)}>{relTimeUntil(n)}</div>
-              <div class="text-ink-500 text-[11px] mt-0.5 font-mono">{fmtUtcShort(n)}</div>
+              <div class="text-base font-bold mt-1 font-mono">{relTimeUntil(n)}</div>
+              <time class="text-ink-500 text-[11px] mt-0.5 font-mono block" datetime={new Date(n).toISOString()} data-ts={nSec}>{fmtUtcShort(n)}</time>
             </>
           );
         })()}
@@ -295,7 +296,7 @@ const recentSpan = Math.max(1, recentTEnd - recentTStart);
                   const head = r.status === 'ok' ? '✓ OK' : '✕ ' + r.status.toUpperCase();
                   const code = r.http_code != null ? ` · HTTP ${r.http_code}` : '';
                   const lat = r.latency_ms != null ? ` · ${r.latency_ms}ms` : '';
-                  const when = ` · ${fmtTime(r.started_at)}`;
+                  const when = `\n${fmtTime(r.started_at)}\n↳ {LOCAL:${r.started_at}}`;
                   const detail = r.status !== 'ok' && r.error_msg ? `\n${r.error_msg}` : '';
                   const kind = r.status !== 'ok' && r.error_kind && !r.error_msg ? `\n${r.error_kind}` : '';
                   return `${head}${code}${lat}${when}${detail}${kind}`;
@@ -322,9 +323,15 @@ const recentSpan = Math.max(1, recentTEnd - recentTStart);
           <a href={`/incident/${i.id}`} class="px-4 py-3 flex items-center justify-between hover:bg-ink-900/40 transition-colors">
             <div>
               <div class="text-sm text-ink-100">{i.cause ?? 'Failure'}</div>
-              <div class="text-xs text-ink-500">
-                opened {fmtTime(i.opened_at)}
-                {i.resolved_at ? ` · resolved ${fmtTime(i.resolved_at)}` : <span class="text-down"> · open</span>}
+              <div class="text-xs text-ink-500 flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                <span>
+                  opened <time datetime={new Date(i.opened_at * 1000).toISOString()} data-ts={i.opened_at}>{fmtTime(i.opened_at)}</time>
+                </span>
+                {i.resolved_at
+                  ? <span>
+                      resolved <time datetime={new Date(i.resolved_at * 1000).toISOString()} data-ts={i.resolved_at}>{fmtTime(i.resolved_at)}</time>
+                    </span>
+                  : <span class="text-down">open</span>}
               </div>
             </div>
             <span class="text-ink-500 text-xs hover:text-ink-300">view →</span>

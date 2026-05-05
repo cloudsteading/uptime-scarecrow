@@ -89,7 +89,7 @@ function durationFor(i: IncidentRow): string {
                     <span class="ml-2 px-1.5 py-0.5 rounded text-xs bg-ink-800 text-ink-400">{i.monitor_type}</span>
                   </td>
                   <td class="px-4 py-3 text-ink-300 max-w-[40ch] truncate" title={i.cause ?? ''}>{i.cause ?? '—'}</td>
-                  <td class="px-4 py-3 text-right text-ink-400 font-mono text-xs">{fmtAbs(i.opened_at)}</td>
+                  <td class="px-4 py-3 text-right text-ink-400 font-mono text-xs">{<time datetime={new Date(i.opened_at * 1000).toISOString()} data-ts={i.opened_at}>{fmtAbs(i.opened_at)}</time>}</td>
                   <td class="px-4 py-3 text-right text-down font-mono">{durationFor(i)}</td>
                 </tr>
               ))}
@@ -126,8 +126,8 @@ function durationFor(i: IncidentRow): string {
                     <span class="ml-2 px-1.5 py-0.5 rounded text-xs bg-ink-800 text-ink-400">{i.monitor_type}</span>
                   </td>
                   <td class="px-4 py-3 text-ink-400 hidden md:table-cell max-w-[40ch] truncate" title={i.cause ?? ''}>{i.cause ?? '—'}</td>
-                  <td class="px-4 py-3 text-right text-ink-500 hidden sm:table-cell font-mono text-xs">{fmtAbs(i.opened_at)}</td>
-                  <td class="px-4 py-3 text-right text-ink-500 hidden sm:table-cell font-mono text-xs">{fmtAbs(i.resolved_at!)}</td>
+                  <td class="px-4 py-3 text-right text-ink-500 hidden sm:table-cell font-mono text-xs">{<time datetime={new Date(i.opened_at * 1000).toISOString()} data-ts={i.opened_at}>{fmtAbs(i.opened_at)}</time>}</td>
+                  <td class="px-4 py-3 text-right text-ink-500 hidden sm:table-cell font-mono text-xs">{<time datetime={new Date(i.resolved_at! * 1000).toISOString()} data-ts={i.resolved_at!}>{fmtAbs(i.resolved_at!)}</time>}</td>
                   <td class="px-4 py-3 text-right text-ink-300 font-mono">{durationFor(i)}</td>
                 </tr>
               ))}

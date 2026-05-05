@@ -43,12 +43,14 @@ function bucketClass(b: Bucket): string {
 }
 
 function tipFor(b: Bucket): string {
-  const at = new Date((startSec + b.hour * BUCKET_S) * 1000)
+  const bucketStartSec = startSec + b.hour * BUCKET_S;
+  const at = new Date(bucketStartSec * 1000)
     .toISOString().replace('T', ' ').slice(0, 13) + ':00 UTC';
-  if (b.total === 0) return `${at} — no checks`;
+  const localPlaceholder = `\n↳ {LOCAL:${bucketStartSec}}`;
+  if (b.total === 0) return `${at}${localPlaceholder}\nno checks`;
   const pct = ((b.ok / b.total) * 100).toFixed(1);
   const avg = b.total > 0 ? Math.round(b.sumLatency / b.total) : 0;
-  return `${at} — ${b.ok}/${b.total} ok (${pct}%)${avg ? ` · avg ${avg}ms` : ''}`;
+  return `${at}${localPlaceholder}\n${b.ok}/${b.total} ok (${pct}%)${avg ? ` · avg ${avg}ms` : ''}`;
 }
 
 const totalChecks = buckets.reduce((s, b) => s + b.total, 0);
