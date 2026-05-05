@@ -56,5 +56,40 @@ const user = Astro.locals.user;
         </div>
       </div>
     </footer>
+
+    <!-- Shared floating tooltip for any element with [data-tip]. Replaces native SVG <title> hovers (which have a long delay and unstyled UA chrome). -->
+    <div id="hover-tip" role="tooltip" class="hidden fixed z-50 pointer-events-none px-2.5 py-1.5 rounded-md border border-ink-700 bg-ink-950/95 backdrop-blur text-[11px] font-mono text-ink-100 shadow-[0_4px_12px_rgba(0,0,0,0.5)] whitespace-nowrap"></div>
+    <script is:inline>
+      (() => {
+        const tip = document.getElementById('hover-tip');
+        if (!tip) return;
+        let active = null;
+        function show(el, x, y) {
+          tip.textContent = el.getAttribute('data-tip') || '';
+          tip.classList.remove('hidden');
+          // Anchor above the cursor by default; flip below if near top edge.
+          const rect = tip.getBoundingClientRect();
+          const margin = 10;
+          let left = x - rect.width / 2;
+          let top = y - rect.height - margin;
+          if (top < 4) top = y + margin + 4;
+          left = Math.max(4, Math.min(left, window.innerWidth - rect.width - 4));
+          tip.style.left = left + 'px';
+          tip.style.top = top + 'px';
+        }
+        function hide() { active = null; tip.classList.add('hidden'); }
+        document.addEventListener('pointermove', (e) => {
+          const t = e.target instanceof Element ? e.target.closest('[data-tip]') : null;
+          if (t) {
+            active = t;
+            show(t, e.clientX, e.clientY);
+          } else if (active) {
+            hide();
+          }
+        });
+        document.addEventListener('pointerleave', hide, true);
+        document.addEventListener('scroll', hide, true);
+      })();
+    </script>
   </body>
 </html>

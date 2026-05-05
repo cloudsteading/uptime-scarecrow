@@ -87,7 +87,7 @@ const dayLabels = Array.from({ length: totalDays }, (_, day) => {
     )}
   </div>
 
-  <svg viewBox={`0 0 ${W} ${H}`} class="w-full block" preserveAspectRatio="none" role="img" aria-label="Last 7 days uptime by hour">
+  <svg viewBox={`0 0 ${W} ${H}`} class="w-full block chart-svg" preserveAspectRatio="none" role="img" aria-label="Last 7 days uptime by hour">
     {buckets.map((b, i) => (
       <rect
         x={i * (barW + gap)}
@@ -96,9 +96,8 @@ const dayLabels = Array.from({ length: totalDays }, (_, day) => {
         height={H}
         class={bucketClass(b)}
         rx={0.5}
-      >
-        <title>{tipFor(b)}</title>
-      </rect>
+        data-tip={tipFor(b)}
+      />
     ))}
   </svg>
 
