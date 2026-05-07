@@ -1,0 +1,19 @@
+---
+import Layout from '~/layouts/Layout.astro';
+import ScarecrowLogo from '~/components/ScarecrowLogo.astro';
+---
+<Layout title="Not found — Uptime Scarecrow">
+  <section class="mx-auto max-w-2xl px-6 py-24 text-center">
+    <div class="mx-auto inline-block opacity-60 grayscale">
+      <ScarecrowLogo size={88} />
+    </div>
+    <div class="mt-6 font-mono text-ink-600 text-sm tracking-widest">404</div>
+    <h1 class="mt-2 text-3xl sm:text-4xl font-bold tracking-tight">Nothing in this field</h1>
+    <p class="mt-4 text-ink-400 max-w-md mx-auto">
+      The page you're looking for isn't here. The crows might've got it, or maybe it never existed.
+    </p>
+    <div class="mt-8 flex items-center justify-center gap-2">
+      <a href="/" class="px-4 py-2 rounded-md bg-accent-600 hover:bg-accent-500 text-white text-sm font-medium">← Back to status</a>
+    </div>
+  </section>
+</Layout>
