@@ -183,10 +183,10 @@ const recentSpan = Math.max(1, recentTEnd - recentTStart);
       </div>
       <div class="flex items-center gap-2">
         <a href={`/admin/monitor/${m.id}/edit`} class="px-3 py-2 rounded-md border border-ink-700 hover:border-ink-500 text-ink-200 text-sm">Edit</a>
-        <form method="POST" action={`/api/v1/monitors/${m.id}/toggle`}>
+        <form method="POST" action={`/admin/api/v1/monitors/${m.id}/toggle`}>
           <button class="px-3 py-2 rounded-md border border-ink-700 hover:border-ink-500 text-ink-200 text-sm">{m.paused ? 'Resume' : 'Pause'}</button>
         </form>
-        <form method="POST" action={`/api/v1/monitors/${m.id}/delete`} onsubmit="return confirm('Delete this monitor?')">
+        <form method="POST" action={`/admin/api/v1/monitors/${m.id}/delete`} onsubmit="return confirm('Delete this monitor?')">
           <button class="px-3 py-2 rounded-md border border-down-soft hover:border-down text-down text-sm">Delete</button>
         </form>
       </div>

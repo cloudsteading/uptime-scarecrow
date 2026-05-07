@@ -29,7 +29,7 @@ const usingCron = !!(hbCfg?.cron_expression || httpCfg?.cron_expression);
       </div>
     )}
 
-    <form method="POST" action={`/api/v1/monitors/${id}/update`} class="mt-6 space-y-5">
+    <form method="POST" action={`/admin/api/v1/monitors/${id}/update`} class="mt-6 space-y-5">
       <input type="hidden" name="type" value={monitor.type} />
 
       <div>

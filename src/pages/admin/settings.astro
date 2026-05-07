@@ -104,7 +104,7 @@ function relTime(unix: number | null): string {
                 </td>
                 <td class="px-4 py-3 hidden md:table-cell text-ink-500 text-xs">{relTime(u.last_seen_at)}</td>
                 <td class="px-4 py-3 text-right">
-                  <form method="POST" action={`/api/v1/users/${u.id}/alert-email`} class="inline">
+                  <form method="POST" action={`/admin/api/v1/users/${u.id}/alert-email`} class="inline">
                     <input type="hidden" name="on" value={u.alert_email ? '0' : '1'} />
                     <button class={`px-2.5 py-1 rounded-md text-xs ${u.alert_email
                         ? 'bg-up-soft/40 text-up border border-up-soft/60'
@@ -154,7 +154,7 @@ function relTime(unix: number | null): string {
                   <td class="px-4 py-3 text-ink-100">{c.name}</td>
                   <td class="px-4 py-3 hidden md:table-cell font-mono text-xs text-ink-500 truncate max-w-[40ch]">{channelDestination(c)}</td>
                   <td class="px-4 py-3 text-right">
-                    <form method="POST" action={`/api/v1/channels/${c.id}/toggle`} class="inline">
+                    <form method="POST" action={`/admin/api/v1/channels/${c.id}/toggle`} class="inline">
                       <button class={`px-2.5 py-1 rounded-md text-xs ${c.enabled
                           ? 'bg-up-soft/40 text-up border border-up-soft/60'
                           : 'bg-ink-800 text-ink-500 border border-ink-700'}`}>
@@ -163,10 +163,10 @@ function relTime(unix: number | null): string {
                     </form>
                   </td>
                   <td class="px-4 py-3 text-right">
-                    <form method="POST" action={`/api/v1/channels/${c.id}/test`} class="inline">
+                    <form method="POST" action={`/admin/api/v1/channels/${c.id}/test`} class="inline">
                       <button class="px-2.5 py-1 rounded-md text-xs border border-ink-700 hover:border-ink-500 text-ink-300">Test</button>
                     </form>
-                    <form method="POST" action={`/api/v1/channels/${c.id}/delete`} class="inline ml-1" onsubmit="return confirm('Delete this channel?')">
+                    <form method="POST" action={`/admin/api/v1/channels/${c.id}/delete`} class="inline ml-1" onsubmit="return confirm('Delete this channel?')">
                       <button class="px-2.5 py-1 rounded-md text-xs border border-down-soft hover:border-down text-down">Delete</button>
                     </form>
                   </td>
