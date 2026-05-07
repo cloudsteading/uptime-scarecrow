@@ -4,8 +4,8 @@ import { verifyAccessJwt } from '~/lib/access';
 import { upsertUser, isAllowedEmail } from '~/lib/db';
 
 // Auth boundary: only /admin/* (page routes + the /admin/api/v1/* JSON API)
-// requires Cloudflare Access. Everything else — public status page at /, public
-// monitor detail at /m/<id>, /about, /h/<token> heartbeat ingest, static
+// requires Cloudflare Access. Everything else — public status page at /,
+// public monitor detail at /m/<id>, /h/<token> heartbeat ingest, static
 // assets — passes through without auth and gets ctx.locals.user = null.
 function requiresAuth(path: string): boolean {
   return path === '/admin' || path.startsWith('/admin/');
