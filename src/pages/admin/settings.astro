@@ -4,9 +4,8 @@ import { listUsers } from '~/lib/db';
 import { listChannels } from '~/lib/channels';
 import { env } from 'cloudflare:workers';
 
-const flash = Astro.url.searchParams.get('flash');
-const flashKind = Astro.url.searchParams.get('flash_kind') ?? 'ok';
-
+// Flash messages render via the global toast system in Layout.astro — it
+// reads ?flash & ?flash_kind on every page load.
 let users: Awaited<ReturnType<typeof listUsers>> = [];
 let channels: Awaited<ReturnType<typeof listChannels>> = [];
 let dbReady = true;
@@ -53,14 +52,6 @@ function relTime(unix: number | null): string {
   <div class="mx-auto max-w-4xl px-6 py-8">
     <h1 class="text-2xl font-bold tracking-tight">Settings</h1>
     <p class="text-ink-400 text-sm mt-1">Single-tenant configuration. No SaaS plan, no billing.</p>
-
-    {flash && (
-      <div class={`mt-4 rounded-md border p-3 text-sm ${flashKind === 'err'
-          ? 'border-down-soft bg-down-soft/20 text-down'
-          : 'border-up-soft/50 bg-up-soft/15 text-up'}`}>
-        {decodeURIComponent(flash)}
-      </div>
-    )}
 
     {!dbReady && (
       <div class="mt-6 rounded-md border border-degraded-soft bg-degraded-soft/20 p-4 text-sm text-degraded">

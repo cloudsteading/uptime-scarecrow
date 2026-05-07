@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { setAlertEmail, logAudit } from '~/lib/db';
+import { flashRedirect } from '~/lib/flash';
 
 export const POST: APIRoute = async (ctx) => {
   const me = ctx.locals.user;
@@ -19,8 +20,5 @@ export const POST: APIRoute = async (ctx) => {
     ip: ctx.clientAddress,
   });
 
-  return new Response(null, {
-    status: 303,
-    headers: { Location: `/admin/settings?flash=${encodeURIComponent('Alert preference saved')}` },
-  });
+  return flashRedirect(ctx, '/admin/settings', 'Alert preference saved');
 };

@@ -1,16 +1,12 @@
-import type { APIRoute } from 'astro';
+import type { APIRoute, APIContext } from 'astro';
 import { createChannel } from '~/lib/channels';
 import { logAudit } from '~/lib/db';
 import type { ChannelType } from '~/lib/notify/types';
 
 const ALLOWED_TYPES: ChannelType[] = ['email', 'slack', 'discord', 'webhook'];
 
-function fail(msg: string): Response {
-  return new Response(null, {
-    status: 303,
-    headers: { Location: `/admin/settings?flash=${encodeURIComponent(msg)}&flash_kind=err` },
-  });
-}
+const fail = (ctx: APIContext, msg: string) =>
+  ctx.redirect(`/admin/settings?flash=${encodeURIComponent(msg)}&flash_kind=err`, 303);
 
 export const POST: APIRoute = async (ctx) => {
   const me = ctx.locals.user;
@@ -19,18 +15,18 @@ export const POST: APIRoute = async (ctx) => {
   const form = await ctx.request.formData();
   const type = String(form.get('type') ?? '') as ChannelType;
   const name = String(form.get('name') ?? '').trim();
-  if (!ALLOWED_TYPES.includes(type)) return fail('Unsupported channel type (v0.1: email/slack/discord/webhook)');
-  if (!name) return fail('Channel name is required');
+  if (!ALLOWED_TYPES.includes(type)) return fail(ctx, 'Unsupported channel type (v0.1: email/slack/discord/webhook)');
+  if (!name) return fail(ctx, 'Channel name is required');
 
   let config: Record<string, unknown> = {};
   if (type === 'email') {
     const address = String(form.get('address') ?? '').trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) return fail('Invalid email address');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) return fail(ctx, 'Invalid email address');
     config = { address };
   } else {
     const url = String(form.get('url') ?? '').trim();
-    try { new URL(url); } catch { return fail('Invalid webhook URL'); }
-    if (!/^https?:\/\//i.test(url)) return fail('Webhook URL must use http(s)');
+    try { new URL(url); } catch { return fail(ctx, 'Invalid webhook URL'); }
+    if (!/^https?:\/\//i.test(url)) return fail(ctx, 'Webhook URL must use http(s)');
     const secret = String(form.get('secret') ?? '').trim();
     config = secret ? { url, secret } : { url };
   }
@@ -45,8 +41,8 @@ export const POST: APIRoute = async (ctx) => {
     ip: ctx.clientAddress,
   });
 
-  return new Response(null, {
-    status: 303,
-    headers: { Location: `/admin/settings?flash=${encodeURIComponent(`Added ${type} channel "${name}"`)}` },
-  });
+  return ctx.redirect(
+    `/admin/settings?flash=${encodeURIComponent(`Added ${type} channel "${name}"`)}`,
+    303,
+  );
 };

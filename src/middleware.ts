@@ -2,6 +2,7 @@ import { defineMiddleware } from 'astro:middleware';
 import { env } from 'cloudflare:workers';
 import { verifyAccessJwt } from '~/lib/access';
 import { upsertUser, isAllowedEmail } from '~/lib/db';
+import { readFlash, clearFlashHeader } from '~/lib/flash';
 
 // Auth boundary: only /admin/* (page routes + the /admin/api/v1/* JSON API)
 // requires Cloudflare Access. Everything else — public status page at /,
@@ -15,9 +16,20 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
   const url = new URL(ctx.request.url);
   const path = url.pathname;
 
+  // Single-use flash cookie. Pulled into locals so the layout can render it;
+  // cleared on the response below so a refresh of the destination doesn't
+  // re-show the toast.
+  const flash = readFlash(ctx.request);
+  ctx.locals.flash = flash;
+
+  const finish = async (response: Response): Promise<Response> => {
+    if (flash) clearFlashHeader(response.headers);
+    return response;
+  };
+
   if (!requiresAuth(path)) {
     ctx.locals.user = null;
-    return next();
+    return finish(await next());
   }
 
   // Dev mode: when Access isn't configured we render with a fake local user
@@ -55,7 +67,7 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
     } else {
       ctx.locals.user = devFakeUser();
     }
-    return next();
+    return finish(await next());
   }
 
   const jwt = ctx.request.headers.get('Cf-Access-Jwt-Assertion');
@@ -83,7 +95,7 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
     is_admin: user.is_admin,
   };
 
-  return next();
+  return finish(await next());
 });
 
 function devFakeUser(): AppUser {

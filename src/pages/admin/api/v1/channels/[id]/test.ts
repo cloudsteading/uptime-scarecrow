@@ -3,6 +3,7 @@ import { env } from 'cloudflare:workers';
 import { getChannel } from '~/lib/channels';
 import { logAudit } from '~/lib/db';
 import { dispatchNotification } from '~/lib/notify';
+import { flashRedirect } from '~/lib/flash';
 
 export const POST: APIRoute = async (ctx) => {
   const me = ctx.locals.user;
@@ -30,15 +31,10 @@ export const POST: APIRoute = async (ctx) => {
   });
 
   const a = summary.attempts[0];
-  const flash = a
+  const msg = a
     ? (a.status === 'sent'
         ? `Test sent to ${ch.type} channel "${ch.name}" in ${a.latency_ms ?? '?'}ms`
         : `Test ${a.status} for "${ch.name}": ${a.error ?? 'unknown error'}`)
     : 'No delivery attempt recorded';
-  const kind = a?.status === 'sent' ? 'ok' : 'err';
-
-  return new Response(null, {
-    status: 303,
-    headers: { Location: `/admin/settings?flash=${encodeURIComponent(flash)}&flash_kind=${kind}` },
-  });
+  return flashRedirect(ctx, '/admin/settings', msg, a?.status === 'sent' ? 'ok' : 'err');
 };

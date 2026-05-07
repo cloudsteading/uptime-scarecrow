@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getMonitor, setPaused } from '~/lib/monitors';
 import { logAudit } from '~/lib/db';
+import { flashRedirect } from '~/lib/flash';
 
 export const POST: APIRoute = async (ctx) => {
   const user = ctx.locals.user;
@@ -18,5 +19,5 @@ export const POST: APIRoute = async (ctx) => {
     target: `monitor:${id}`,
     ip: ctx.clientAddress,
   });
-  return new Response(null, { status: 303, headers: { Location: `/admin/monitor/${id}` } });
+  return flashRedirect(ctx, `/admin/monitor/${id}`, m.paused ? 'Monitor resumed' : 'Monitor paused');
 };

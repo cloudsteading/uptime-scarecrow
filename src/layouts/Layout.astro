@@ -15,6 +15,7 @@ const {
 } = Astro.props;
 
 const user = Astro.locals.user;
+const flash = Astro.locals.flash;
 ---
 <!doctype html>
 <html lang="en">
@@ -24,6 +25,7 @@ const user = Astro.locals.user;
     <title>{title}</title>
     <meta name="description" content={description} />
     <meta name="color-scheme" content="dark" />
+    {flash && <meta name="x-flash" data-msg={flash.msg} data-kind={flash.kind} />}
   </head>
   <body class="bg-ink-950 text-ink-100 font-sans">
     <header class="border-b border-ink-800 bg-ink-950/70 backdrop-blur sticky top-0 z-30">
@@ -61,7 +63,52 @@ const user = Astro.locals.user;
 
     <!-- Shared floating tooltip for any element with [data-tip]. Replaces native SVG <title> hovers (which have a long delay and unstyled UA chrome). data-tip values may contain \n (rendered as line breaks via whitespace-pre-line) and {LOCAL:<unix>} placeholders that get replaced with the viewer's local time on hover. -->
     <div id="hover-tip" role="tooltip" class="hidden fixed z-50 pointer-events-none px-2.5 py-1.5 rounded-md border border-ink-700 bg-ink-950/95 backdrop-blur text-[11px] font-mono text-ink-100 shadow-[0_4px_12px_rgba(0,0,0,0.5)] whitespace-pre-line max-w-sm leading-relaxed"></div>
+
+    <!-- Toast stack. Auto-shows any ?flash=msg&flash_kind=ok|err query param on
+         page load, then strips those params from the URL so refresh doesn't
+         re-show. window.toast(text, 'ok'|'err') is also exposed for in-page JS. -->
+    <div id="toast-stack" aria-live="polite" class="fixed bottom-4 right-4 z-50 flex flex-col-reverse gap-2 max-w-sm pointer-events-none"></div>
     <script is:inline>
+      // Toast system. Reads flash data from a server-emitted <meta name="x-flash">
+      // tag (set by middleware from the single-use flash cookie). The cookie is
+      // already cleared by the response middleware so refresh won't re-show.
+      // window.toast(text, 'ok'|'err') is also exposed for client-driven toasts.
+      (() => {
+        const stack = document.getElementById('toast-stack');
+        if (!stack) return;
+        function show(text, kind) {
+          const isErr = kind === 'err';
+          const t = document.createElement('div');
+          t.className = `pointer-events-auto rounded-md border px-3.5 py-2.5 text-sm shadow-[0_8px_24px_rgba(0,0,0,0.5)] backdrop-blur transition duration-200 opacity-0 translate-x-3 cursor-pointer ${
+            isErr
+              ? 'border-down/60 bg-down-soft/40 text-ink-100'
+              : 'border-up/60 bg-up-soft/40 text-ink-100'
+          }`;
+          const dot = document.createElement('span');
+          dot.className = `inline-block w-1.5 h-1.5 rounded-full mr-2 align-middle ${isErr ? 'bg-down' : 'bg-up'}`;
+          const span = document.createElement('span');
+          span.className = 'align-middle';
+          span.textContent = text;
+          t.appendChild(dot);
+          t.appendChild(span);
+          stack.appendChild(t);
+          requestAnimationFrame(() => { t.classList.remove('opacity-0', 'translate-x-3'); });
+          const dismiss = () => {
+            t.classList.add('opacity-0', 'translate-x-3');
+            setTimeout(() => t.remove(), 220);
+          };
+          t.addEventListener('click', dismiss);
+          setTimeout(dismiss, 4000);
+        }
+        window.toast = show;
+        const meta = document.querySelector('meta[name="x-flash"]');
+        if (meta) {
+          const msg = meta.getAttribute('data-msg');
+          const kind = meta.getAttribute('data-kind') === 'err' ? 'err' : 'ok';
+          if (msg) show(msg, kind);
+        }
+      })();
+
       (() => {
         // Local time is the viewer's machine clock — server can't know it, so
         // we always emit UTC at SSR and let this script append local alongside.

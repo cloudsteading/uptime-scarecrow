@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getChannel, setChannelEnabled } from '~/lib/channels';
 import { logAudit } from '~/lib/db';
+import { flashRedirect } from '~/lib/flash';
 
 export const POST: APIRoute = async (ctx) => {
   const me = ctx.locals.user;
@@ -17,5 +18,5 @@ export const POST: APIRoute = async (ctx) => {
     target: `channel:${id}`,
     ip: ctx.clientAddress,
   });
-  return new Response(null, { status: 303, headers: { Location: '/admin/settings' } });
+  return flashRedirect(ctx, '/admin/settings', ch.enabled ? 'Channel disabled' : 'Channel enabled');
 };

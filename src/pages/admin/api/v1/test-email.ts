@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
 import { logAudit } from '~/lib/db';
+import { flashRedirect } from '~/lib/flash';
 
 export const POST: APIRoute = async (ctx) => {
   const me = ctx.locals.user;
@@ -41,10 +42,5 @@ export const POST: APIRoute = async (ctx) => {
     ip: ctx.clientAddress,
   });
 
-  return new Response(null, {
-    status: 303,
-    headers: {
-      Location: `/admin/settings?flash=${encodeURIComponent(flash)}&flash_kind=${kind}`,
-    },
-  });
+  return flashRedirect(ctx, '/admin/settings', flash, kind);
 };

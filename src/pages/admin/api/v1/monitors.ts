@@ -1,15 +1,12 @@
-import type { APIRoute } from 'astro';
+import type { APIRoute, APIContext } from 'astro';
 import { createHttpMonitor, createHeartbeatMonitor } from '~/lib/monitors';
 import { logAudit } from '~/lib/db';
 import { validateCron } from '~/lib/cron';
+import { flashRedirect } from '~/lib/flash';
 import { env } from 'cloudflare:workers';
 
-function fail(redirectTo: string, msg: string): Response {
-  return new Response(null, {
-    status: 303,
-    headers: { Location: `${redirectTo}&error=${encodeURIComponent(msg)}` },
-  });
-}
+const fail = (ctx: APIContext, redirectTo: string, msg: string) =>
+  flashRedirect(ctx, redirectTo, msg, 'err');
 
 export const POST: APIRoute = async (ctx) => {
   const user = ctx.locals.user;
@@ -18,7 +15,7 @@ export const POST: APIRoute = async (ctx) => {
   const form = await ctx.request.formData();
   const type = form.get('type');
   const name = String(form.get('name') ?? '').trim();
-  if (!name) return fail(`/admin/monitor/new?type=${type}`, 'Name is required');
+  if (!name) return fail(ctx, `/admin/monitor/new?type=${type}`, 'Name is required');
   const is_public = form.get('is_public') === 'on' || form.get('is_public') === '1';
 
   if (type === 'http') {
@@ -27,20 +24,20 @@ export const POST: APIRoute = async (ctx) => {
     const timeout_ms = Number(form.get('timeout_ms') ?? 10_000);
     const keyword_present = String(form.get('keyword_present') ?? '').trim() || undefined;
 
-    try { new URL(url); } catch { return fail('/monitor/new?type=http', 'Invalid URL'); }
-    if (!['GET', 'HEAD', 'POST'].includes(method)) return fail('/monitor/new?type=http', 'Bad method');
+    try { new URL(url); } catch { return fail(ctx, '/admin/monitor/new?type=http', 'Invalid URL'); }
+    if (!['GET', 'HEAD', 'POST'].includes(method)) return fail(ctx, '/admin/monitor/new?type=http', 'Bad method');
 
     const kind = String(form.get('schedule_kind') ?? 'interval');
     let interval_seconds: number | undefined;
     let cron_expression: string | undefined;
     if (kind === 'cron') {
       cron_expression = String(form.get('cron_expression') ?? '').trim();
-      if (!cron_expression) return fail('/monitor/new?type=http', 'Cron expression required');
+      if (!cron_expression) return fail(ctx, '/admin/monitor/new?type=http', 'Cron expression required');
       const v = validateCron(cron_expression);
-      if (!v.ok) return fail('/monitor/new?type=http', `Invalid cron: ${v.error}`);
+      if (!v.ok) return fail(ctx, '/admin/monitor/new?type=http', `Invalid cron: ${v.error}`);
     } else {
       interval_seconds = Number(form.get('interval_seconds') ?? 300);
-      if (![60, 300, 900, 3600].includes(interval_seconds)) return fail('/monitor/new?type=http', 'Bad interval');
+      if (![60, 300, 900, 3600].includes(interval_seconds)) return fail(ctx, '/admin/monitor/new?type=http', 'Bad interval');
     }
 
     const id = await createHttpMonitor({
@@ -57,8 +54,7 @@ export const POST: APIRoute = async (ctx) => {
     });
 
     await ensureDO(env.MONITOR_SCHEDULER, id);
-
-    return new Response(null, { status: 303, headers: { Location: `/admin/monitor/${id}` } });
+    return flashRedirect(ctx, `/admin/monitor/${id}`, 'Monitor created');
   }
 
   if (type === 'heartbeat') {
@@ -69,13 +65,13 @@ export const POST: APIRoute = async (ctx) => {
 
     if (kind === 'cron') {
       cron_expression = String(form.get('cron_expression') ?? '').trim();
-      if (!cron_expression) return fail('/monitor/new?type=heartbeat', 'Cron expression required');
+      if (!cron_expression) return fail(ctx, '/admin/monitor/new?type=heartbeat', 'Cron expression required');
       const v = validateCron(cron_expression);
-      if (!v.ok) return fail('/monitor/new?type=heartbeat', `Invalid cron: ${v.error}`);
+      if (!v.ok) return fail(ctx, '/admin/monitor/new?type=heartbeat', `Invalid cron: ${v.error}`);
     } else {
       interval_seconds = Number(form.get('interval_seconds') ?? 3600);
       if (interval_seconds < 60 || interval_seconds > 30 * 86400) {
-        return fail('/monitor/new?type=heartbeat', 'Interval out of range');
+        return fail(ctx, '/admin/monitor/new?type=heartbeat', 'Interval out of range');
       }
     }
 
@@ -94,14 +90,13 @@ export const POST: APIRoute = async (ctx) => {
 
     await ensureDO(env.HEARTBEAT_TRACKER, id);
 
-    // Show the token once. Pass via flash query — better than persisting it.
-    return new Response(null, {
-      status: 303,
-      headers: { Location: `/admin/monitor/${id}?new_token=${encodeURIComponent(token)}` },
-    });
+    // Show the token once. The new_token query is inspected by the monitor
+    // detail page to render a one-time reveal block; we don't toast over it
+    // because the token UI is the success signal.
+    return ctx.redirect(`/admin/monitor/${id}?new_token=${encodeURIComponent(token)}`, 303);
   }
 
-  return fail('/monitor/new?type=http', 'Unknown monitor type');
+  return fail(ctx, '/admin/monitor/new?type=http', 'Unknown monitor type');
 };
 
 async function ensureDO(ns: DurableObjectNamespace | undefined, id: number): Promise<void> {

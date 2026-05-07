@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { deleteMonitor } from '~/lib/monitors';
 import { logAudit } from '~/lib/db';
+import { flashRedirect } from '~/lib/flash';
 import { env } from 'cloudflare:workers';
 
 export const POST: APIRoute = async (ctx) => {
@@ -31,5 +32,5 @@ export const POST: APIRoute = async (ctx) => {
     }
   }
 
-  return new Response(null, { status: 303, headers: { Location: '/admin' } });
+  return flashRedirect(ctx, '/admin', 'Monitor deleted');
 };

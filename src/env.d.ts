@@ -67,5 +67,6 @@ declare namespace App {
   interface Locals {
     runtime: Runtime;
     user: AppUser | null;
+    flash: { msg: string; kind: 'ok' | 'err' } | null;
   }
 }

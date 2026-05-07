@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { deleteChannel } from '~/lib/channels';
 import { logAudit } from '~/lib/db';
+import { flashRedirect } from '~/lib/flash';
 
 export const POST: APIRoute = async (ctx) => {
   const me = ctx.locals.user;
@@ -19,8 +20,5 @@ export const POST: APIRoute = async (ctx) => {
     ip: ctx.clientAddress,
   });
 
-  return new Response(null, {
-    status: 303,
-    headers: { Location: `/admin/settings?flash=${encodeURIComponent('Channel deleted')}` },
-  });
+  return flashRedirect(ctx, '/admin/settings', 'Channel deleted');
 };
