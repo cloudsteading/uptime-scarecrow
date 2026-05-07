@@ -31,5 +31,5 @@ export const POST: APIRoute = async (ctx) => {
     }
   }
 
-  return new Response(null, { status: 303, headers: { Location: '/' } });
+  return new Response(null, { status: 303, headers: { Location: '/admin' } });
 };

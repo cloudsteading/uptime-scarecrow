@@ -71,7 +71,7 @@ function relTime(unix: number | null): string {
     <section class="mt-8">
       <div class="flex items-baseline justify-between">
         <h2 class="text-lg font-semibold text-ink-100">Alert recipients</h2>
-        <form method="POST" action="/api/v1/test-email">
+        <form method="POST" action="/admin/api/v1/test-email">
           <button class="px-3 py-1.5 rounded-md border border-ink-700 hover:border-ink-500 text-ink-200 text-sm">Send test email to me</button>
         </form>
       </div>
@@ -181,7 +181,7 @@ function relTime(unix: number | null): string {
         <summary class="cursor-pointer px-4 py-3 text-sm text-ink-200 hover:bg-ink-900/50 select-none">
           + Add a channel
         </summary>
-        <form method="POST" action="/api/v1/channels" class="px-4 py-4 space-y-4 border-t border-ink-800">
+        <form method="POST" action="/admin/api/v1/channels" class="px-4 py-4 space-y-4 border-t border-ink-800">
           <div class="grid sm:grid-cols-2 gap-4">
             <div>
               <label class="block text-xs uppercase tracking-wide text-ink-500 mb-1.5" for="ch_type">Type</label>

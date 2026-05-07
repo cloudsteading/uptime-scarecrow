@@ -6,7 +6,7 @@ import { validateCron } from '~/lib/cron';
 function fail(id: number, msg: string): Response {
   return new Response(null, {
     status: 303,
-    headers: { Location: `/monitor/${id}/edit?error=${encodeURIComponent(msg)}` },
+    headers: { Location: `/admin/monitor/${id}/edit?error=${encodeURIComponent(msg)}` },
   });
 }
 
@@ -23,6 +23,7 @@ export const POST: APIRoute = async (ctx) => {
 
   const failure_threshold = Math.max(1, Math.min(20, Number(form.get('failure_threshold') ?? 2)));
   const recovery_threshold = Math.max(1, Math.min(20, Number(form.get('recovery_threshold') ?? 1)));
+  const is_public = form.get('is_public') === 'on' || form.get('is_public') === '1';
 
   if (type === 'http') {
     const url = String(form.get('url') ?? '').trim();
@@ -48,7 +49,7 @@ export const POST: APIRoute = async (ctx) => {
 
     const ok = await updateHttpMonitor(id, {
       name, url, method, interval_seconds, cron_expression, timeout_ms, keyword_present,
-      failure_threshold, recovery_threshold,
+      failure_threshold, recovery_threshold, is_public,
     });
     if (!ok) return new Response('Not found', { status: 404 });
 
@@ -60,7 +61,7 @@ export const POST: APIRoute = async (ctx) => {
       payload: { type: 'http', url, interval_seconds, cron_expression, timeout_ms },
       ip: ctx.clientAddress,
     });
-    return new Response(null, { status: 303, headers: { Location: `/monitor/${id}` } });
+    return new Response(null, { status: 303, headers: { Location: `/admin/monitor/${id}` } });
   }
 
   if (type === 'heartbeat') {
@@ -81,7 +82,7 @@ export const POST: APIRoute = async (ctx) => {
 
     const ok = await updateHeartbeatMonitor(id, {
       name, interval_seconds, cron_expression, grace_seconds,
-      failure_threshold, recovery_threshold,
+      failure_threshold, recovery_threshold, is_public,
     });
     if (!ok) return new Response('Not found', { status: 404 });
 
@@ -93,7 +94,7 @@ export const POST: APIRoute = async (ctx) => {
       payload: { type: 'heartbeat', interval_seconds, cron_expression, grace_seconds },
       ip: ctx.clientAddress,
     });
-    return new Response(null, { status: 303, headers: { Location: `/monitor/${id}` } });
+    return new Response(null, { status: 303, headers: { Location: `/admin/monitor/${id}` } });
   }
 
   return fail(id, 'Unknown monitor type');

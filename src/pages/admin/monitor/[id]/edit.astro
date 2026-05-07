@@ -5,11 +5,11 @@ import { getMonitor } from '~/lib/monitors';
 import type { HttpMonitorConfig, HeartbeatMonitorConfig } from '~/lib/db';
 
 const id = Number(Astro.params.id);
-if (!Number.isFinite(id)) return Astro.redirect('/');
+if (!Number.isFinite(id)) return Astro.redirect('/admin');
 
 let monitor: Awaited<ReturnType<typeof getMonitor>> = null;
 try { monitor = await getMonitor(id); } catch { /* db not ready */ }
-if (!monitor) return Astro.redirect('/');
+if (!monitor) return Astro.redirect('/admin');
 
 const error = Astro.url.searchParams.get('error');
 const httpCfg = monitor.type === 'http' ? (monitor.parsed_config as HttpMonitorConfig) : null;
@@ -18,7 +18,7 @@ const usingCron = !!(hbCfg?.cron_expression || httpCfg?.cron_expression);
 ---
 <Layout title={`Edit ${monitor.name} — Uptime Scarecrow`}>
   <div class="mx-auto max-w-3xl px-6 py-8">
-    <a href={`/monitor/${id}`} class="text-ink-500 text-sm hover:text-ink-300">← {monitor.name}</a>
+    <a href={`/admin/monitor/${id}`} class="text-ink-500 text-sm hover:text-ink-300">← {monitor.name}</a>
     <h1 class="text-2xl font-bold tracking-tight mt-2">
       Edit {monitor.type === 'http' ? 'HTTP monitor' : 'heartbeat monitor'}
     </h1>
@@ -177,9 +177,19 @@ const usingCron = !!(hbCfg?.cron_expression || httpCfg?.cron_expression);
         </div>
       </fieldset>
 
+      <div class="rounded-md border border-ink-800 bg-ink-900/40 p-4">
+        <label class="flex items-start gap-3 cursor-pointer">
+          <input type="checkbox" name="is_public" value="1" checked={monitor.is_public === 1} class="mt-0.5 h-4 w-4 rounded border-ink-700 bg-ink-900 accent-accent-500" />
+          <div>
+            <div class="text-sm text-ink-100 font-medium">Show on public status page</div>
+            <div class="text-ink-500 text-xs mt-0.5">When enabled, this monitor appears at <code class="font-mono">/</code> and <code class="font-mono">/m/{id}</code>. Anyone with the link can see name, URL, status, and uptime history.</div>
+          </div>
+        </label>
+      </div>
+
       <div class="flex items-center gap-2 pt-2">
         <button type="submit" class="px-4 py-2 rounded-md bg-accent-600 hover:bg-accent-500 text-white font-medium">Save changes</button>
-        <a href={`/monitor/${id}`} class="px-4 py-2 rounded-md border border-ink-700 hover:border-ink-500 text-ink-200">Cancel</a>
+        <a href={`/admin/monitor/${id}`} class="px-4 py-2 rounded-md border border-ink-700 hover:border-ink-500 text-ink-200">Cancel</a>
       </div>
     </form>
   </div>

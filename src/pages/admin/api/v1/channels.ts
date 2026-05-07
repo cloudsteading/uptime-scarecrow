@@ -8,7 +8,7 @@ const ALLOWED_TYPES: ChannelType[] = ['email', 'slack', 'discord', 'webhook'];
 function fail(msg: string): Response {
   return new Response(null, {
     status: 303,
-    headers: { Location: `/settings?flash=${encodeURIComponent(msg)}&flash_kind=err` },
+    headers: { Location: `/admin/settings?flash=${encodeURIComponent(msg)}&flash_kind=err` },
   });
 }
 
@@ -47,6 +47,6 @@ export const POST: APIRoute = async (ctx) => {
 
   return new Response(null, {
     status: 303,
-    headers: { Location: `/settings?flash=${encodeURIComponent(`Added ${type} channel "${name}"`)}` },
+    headers: { Location: `/admin/settings?flash=${encodeURIComponent(`Added ${type} channel "${name}"`)}` },
   });
 };

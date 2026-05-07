@@ -1,0 +1,176 @@
+---
+import Layout from '~/layouts/Layout.astro';
+import UptimeChart from '~/components/UptimeChart.astro';
+import { getMonitor } from '~/lib/monitors';
+import { db } from '~/lib/db';
+import type { HttpMonitorConfig, RecentCheckRow } from '~/lib/db';
+import { fmtUtcShort } from '~/lib/schedule';
+
+// Public monitor detail. Returns 404 if monitor.is_public is 0 — no operator
+// chrome (no edit/pause/delete, no heartbeat token, no audit info).
+
+const idStr = Astro.params.id;
+const id = Number(idStr);
+if (!Number.isFinite(id)) return new Response('Not found', { status: 404 });
+
+let monitor = await getMonitor(id).catch(() => null);
+if (!monitor || monitor.is_public !== 1) {
+  return new Response('Not found', { status: 404 });
+}
+
+const sevenDaysAgo = Math.floor(Date.now() / 1000) - 7 * 86400;
+const checks = await db()
+  .prepare(`SELECT * FROM recent_check WHERE monitor_id = ? AND started_at >= ? ORDER BY started_at DESC`)
+  .bind(id, sevenDaysAgo)
+  .all<RecentCheckRow>();
+const weekChecks = checks.results;
+const recent = weekChecks.slice(0, 60).reverse();
+
+type IncidentEntry = { id: number; opened_at: number; resolved_at: number | null; cause: string | null };
+const inc = await db()
+  .prepare(`SELECT id, opened_at, resolved_at, cause FROM incident WHERE monitor_id = ? ORDER BY opened_at DESC LIMIT 10`)
+  .bind(id)
+  .all<IncidentEntry>();
+const incidents = inc.results;
+
+const m = monitor;
+const httpCfg = m.type === 'http' ? (m.parsed_config as HttpMonitorConfig) : null;
+
+const weekTotal = weekChecks.length;
+const weekOk = weekChecks.filter((r) => r.status === 'ok').length;
+const uptime = weekTotal > 0 ? (weekOk / weekTotal) * 100 : null;
+
+const lats = weekChecks.filter((r) => r.latency_ms != null).map((r) => r.latency_ms!).sort((a, b) => a - b);
+function pct(arr: number[], p: number): number | null {
+  if (arr.length === 0) return null;
+  return arr[Math.min(arr.length - 1, Math.floor((arr.length - 1) * p))];
+}
+const p50 = pct(lats, 0.50);
+const p95 = pct(lats, 0.95);
+
+const maxLatencyForChart = Math.max(200, ...recent.map((r) => r.latency_ms ?? 0));
+const nowSec = Math.floor(Date.now() / 1000);
+const recentTStart = recent.length > 0
+  ? Math.min(recent[0].started_at, nowSec - m.interval_seconds * 2)
+  : nowSec - 3600;
+const recentSpan = Math.max(1, nowSec - recentTStart);
+
+function statusBadge() {
+  if (m.paused) return { dot: 'bg-paused', label: 'paused', cls: 'text-paused' };
+  switch (m.state?.status) {
+    case 'up': return { dot: 'bg-up shadow-[0_0_10px_1px_rgba(107,143,94,0.5)]', label: 'operational', cls: 'text-up' };
+    case 'down': return { dot: 'bg-down shadow-[0_0_10px_1px_rgba(168,57,44,0.5)]', label: 'down', cls: 'text-down' };
+    default: return { dot: 'bg-ink-500', label: 'unknown', cls: 'text-ink-500' };
+  }
+}
+const badge = statusBadge();
+
+function fmtTime(unix: number): string {
+  return new Date(unix * 1000).toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+}
+function fmtDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return `${h}h ${m}m`;
+}
+function intervalLabel(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.round(seconds / 3600)}h`;
+  return `${Math.round(seconds / 86400)}d`;
+}
+---
+<Layout title={`${m.name} · Status`}>
+  <section class="mx-auto max-w-4xl px-6 py-10">
+    <a href="/" class="text-ink-500 text-sm hover:text-ink-300">← Status</a>
+
+    <div class="mt-3 flex items-center gap-3 flex-wrap">
+      <span class={`inline-block w-3 h-3 rounded-full ${badge.dot}`}></span>
+      <h1 class="text-3xl font-bold tracking-tight">{m.name}</h1>
+      <span class={`text-base font-medium ${badge.cls}`}>{badge.label}</span>
+    </div>
+    {httpCfg?.url && <div class="text-ink-500 font-mono text-sm mt-2 break-all">{httpCfg.url}</div>}
+
+    <div class="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div class="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+        <div class="text-ink-500 text-xs uppercase tracking-wide">7-day uptime</div>
+        <div class={`text-2xl font-bold mt-1 font-mono ${uptime == null ? 'text-ink-500' : uptime >= 99.9 ? 'text-up' : uptime >= 99 ? 'text-degraded' : 'text-down'}`}>
+          {uptime != null ? `${uptime.toFixed(2)}%` : '—'}
+        </div>
+        <div class="text-ink-600 text-[11px] mt-0.5 font-mono">{weekOk}/{weekTotal} checks ok</div>
+      </div>
+      <div class="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+        <div class="text-ink-500 text-xs uppercase tracking-wide">Latency p95</div>
+        <div class="text-2xl font-bold mt-1 font-mono">{p95 != null ? `${p95}ms` : '—'}</div>
+        <div class="text-ink-600 text-[11px] mt-0.5 font-mono">p50 {p50 != null ? `${p50}ms` : '—'}</div>
+      </div>
+      <div class="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+        <div class="text-ink-500 text-xs uppercase tracking-wide">Schedule</div>
+        <div class="text-2xl font-bold mt-1 truncate">{httpCfg?.cron_expression ?? intervalLabel(m.interval_seconds)}</div>
+      </div>
+      <div class="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+        <div class="text-ink-500 text-xs uppercase tracking-wide">Type</div>
+        <div class="text-2xl font-bold mt-1">{m.type}</div>
+      </div>
+    </div>
+
+    <div class="mt-8">
+      <UptimeChart checks={weekChecks} />
+    </div>
+
+    {recent.length > 0 && (
+      <div class="mt-8 rounded-lg border border-ink-800 bg-ink-900/30 p-5">
+        <div class="flex items-center justify-between mb-3">
+          <div class="font-medium">Last {recent.length} checks</div>
+          <div class="text-ink-500 text-xs">{fmtUtcShort(recentTStart * 1000)} → now</div>
+        </div>
+        <svg viewBox="0 0 1000 80" class="w-full block h-20" preserveAspectRatio="none" role="img" aria-label="Recent checks">
+          {recent.map((r) => {
+            const x = ((r.started_at - recentTStart) / recentSpan) * 1000;
+            const h = Math.max(6, Math.min(80, ((r.latency_ms ?? 30) / maxLatencyForChart) * 80));
+            return (
+              <rect
+                x={x - 2}
+                y={80 - h}
+                width={4}
+                height={h}
+                rx={1}
+                class={r.status === 'ok' ? 'fill-up/80' : 'fill-down/85'}
+                data-tip={`${r.status === 'ok' ? '✓ OK' : '✕ ' + r.status.toUpperCase()}${r.http_code != null ? ' · HTTP ' + r.http_code : ''}${r.latency_ms != null ? ' · ' + r.latency_ms + 'ms' : ''}\n${fmtTime(r.started_at)}\n↳ {LOCAL:${r.started_at}}`}
+              />
+            );
+          })}
+        </svg>
+        <div class="flex items-center gap-4 text-xs text-ink-500 mt-3">
+          <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-up/80"></span>OK</span>
+          <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-down/85"></span>Failed</span>
+          <span class="ml-auto font-mono text-[11px] text-ink-600">y = latency (max {Math.round(maxLatencyForChart)}ms)</span>
+        </div>
+      </div>
+    )}
+
+    {incidents.length > 0 && (
+      <div class="mt-8 rounded-lg border border-ink-800 overflow-hidden">
+        <div class="bg-ink-900/60 px-4 py-2 text-xs uppercase tracking-wide text-ink-400 font-medium">Recent incidents</div>
+        <div class="divide-y divide-ink-800/60">
+          {incidents.map((i) => (
+            <div class="px-4 py-3 flex items-center justify-between gap-4">
+              <div class="min-w-0">
+                <div class="text-sm text-ink-100">{i.cause ?? 'Failure'}</div>
+                <div class="text-xs text-ink-500 mt-1 flex flex-wrap gap-x-3">
+                  <span>opened <time datetime={new Date(i.opened_at * 1000).toISOString()} data-ts={i.opened_at}>{fmtTime(i.opened_at)}</time></span>
+                  {i.resolved_at && <span>resolved <time datetime={new Date(i.resolved_at * 1000).toISOString()} data-ts={i.resolved_at}>{fmtTime(i.resolved_at)}</time></span>}
+                </div>
+              </div>
+              {i.resolved_at
+                ? <span class="text-ink-500 text-sm font-mono shrink-0">{fmtDuration(i.resolved_at - i.opened_at)}</span>
+                : <span class="text-down text-sm font-medium shrink-0">ongoing</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+  </section>
+</Layout>

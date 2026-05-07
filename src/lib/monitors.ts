@@ -32,7 +32,8 @@ function rowToMonitor(r: MonitorRow & Partial<MonitorStateRow>): MonitorWithStat
   return {
     id: r.id, type: r.type, name: r.name, config: r.config,
     interval_seconds: r.interval_seconds, grace_seconds: r.grace_seconds,
-    paused: r.paused, failure_threshold: r.failure_threshold,
+    paused: r.paused, is_public: r.is_public ?? 0,
+    failure_threshold: r.failure_threshold,
     recovery_threshold: r.recovery_threshold, created_at: r.created_at,
     created_by: r.created_by,
     state, parsed_config: parseConfig(r.config),
@@ -77,6 +78,7 @@ export type CreateHttpInput = {
   cron_expression?: string;
   timeout_ms: number;
   keyword_present?: string;
+  is_public?: boolean;
 };
 
 async function resolveScheduleSeconds(
@@ -110,10 +112,10 @@ export async function createHttpMonitor(input: CreateHttpInput): Promise<number>
   const intervalForRow = await resolveScheduleSeconds(input.interval_seconds, input.cron_expression, 300);
   const res = await db()
     .prepare(
-      `INSERT INTO monitor (type, name, config, interval_seconds, grace_seconds, created_by)
-       VALUES ('http', ?, ?, ?, 0, ?)`,
+      `INSERT INTO monitor (type, name, config, interval_seconds, grace_seconds, is_public, created_by)
+       VALUES ('http', ?, ?, ?, 0, ?, ?)`,
     )
-    .bind(input.name, JSON.stringify(cfg), intervalForRow, input.created_by)
+    .bind(input.name, JSON.stringify(cfg), intervalForRow, input.is_public ? 1 : 0, input.created_by)
     .run();
   const id = (res.meta as { last_row_id?: number })?.last_row_id;
   if (!id) throw new Error('monitor insert failed');
@@ -131,6 +133,7 @@ export type CreateHeartbeatInput = {
   interval_seconds?: number;
   cron_expression?: string;
   grace_seconds: number;
+  is_public?: boolean;
 };
 
 export async function createHeartbeatMonitor(input: CreateHeartbeatInput): Promise<{ id: number; token: string }> {
@@ -159,10 +162,10 @@ export async function createHeartbeatMonitor(input: CreateHeartbeatInput): Promi
 
   const res = await db()
     .prepare(
-      `INSERT INTO monitor (type, name, config, interval_seconds, grace_seconds, created_by)
-       VALUES ('heartbeat', ?, ?, ?, ?, ?)`,
+      `INSERT INTO monitor (type, name, config, interval_seconds, grace_seconds, is_public, created_by)
+       VALUES ('heartbeat', ?, ?, ?, ?, ?, ?)`,
     )
-    .bind(input.name, JSON.stringify(cfg), intervalForRow, input.grace_seconds, input.created_by)
+    .bind(input.name, JSON.stringify(cfg), intervalForRow, input.grace_seconds, input.is_public ? 1 : 0, input.created_by)
     .run();
   const id = (res.meta as { last_row_id?: number })?.last_row_id;
   if (!id) throw new Error('monitor insert failed');
@@ -188,6 +191,7 @@ export type UpdateHttpInput = {
   keyword_present?: string;
   failure_threshold: number;
   recovery_threshold: number;
+  is_public?: boolean;
 };
 
 export type UpdateHeartbeatInput = {
@@ -197,6 +201,7 @@ export type UpdateHeartbeatInput = {
   grace_seconds: number;
   failure_threshold: number;
   recovery_threshold: number;
+  is_public?: boolean;
 };
 
 /**
@@ -227,12 +232,14 @@ export async function updateHttpMonitor(id: number, input: UpdateHttpInput): Pro
     .prepare(
       `UPDATE monitor
           SET name = ?, config = ?, interval_seconds = ?,
-              failure_threshold = ?, recovery_threshold = ?
+              failure_threshold = ?, recovery_threshold = ?,
+              is_public = ?
         WHERE id = ?`,
     )
     .bind(
       input.name, JSON.stringify(cfg), intervalForRow,
-      input.failure_threshold, input.recovery_threshold, id,
+      input.failure_threshold, input.recovery_threshold,
+      input.is_public ? 1 : 0, id,
     )
     .run();
   return ((res.meta as { changes?: number })?.changes ?? 0) > 0;
@@ -270,12 +277,14 @@ export async function updateHeartbeatMonitor(id: number, input: UpdateHeartbeatI
     .prepare(
       `UPDATE monitor
           SET name = ?, config = ?, interval_seconds = ?, grace_seconds = ?,
-              failure_threshold = ?, recovery_threshold = ?
+              failure_threshold = ?, recovery_threshold = ?,
+              is_public = ?
         WHERE id = ?`,
     )
     .bind(
       input.name, JSON.stringify(cfg), intervalForRow, input.grace_seconds,
-      input.failure_threshold, input.recovery_threshold, id,
+      input.failure_threshold, input.recovery_threshold,
+      input.is_public ? 1 : 0, id,
     )
     .run();
   return ((res.meta as { changes?: number })?.changes ?? 0) > 0;

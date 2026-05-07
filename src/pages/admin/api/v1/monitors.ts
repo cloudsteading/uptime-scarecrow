@@ -18,7 +18,8 @@ export const POST: APIRoute = async (ctx) => {
   const form = await ctx.request.formData();
   const type = form.get('type');
   const name = String(form.get('name') ?? '').trim();
-  if (!name) return fail(`/monitor/new?type=${type}`, 'Name is required');
+  if (!name) return fail(`/admin/monitor/new?type=${type}`, 'Name is required');
+  const is_public = form.get('is_public') === 'on' || form.get('is_public') === '1';
 
   if (type === 'http') {
     const url = String(form.get('url') ?? '').trim();
@@ -44,7 +45,7 @@ export const POST: APIRoute = async (ctx) => {
 
     const id = await createHttpMonitor({
       created_by: user.id || null,
-      name, url, method, interval_seconds, cron_expression, timeout_ms, keyword_present,
+      name, url, method, interval_seconds, cron_expression, timeout_ms, keyword_present, is_public,
     });
     await logAudit({
       actor_user_id: user.id || null,
@@ -57,7 +58,7 @@ export const POST: APIRoute = async (ctx) => {
 
     await ensureDO(env.MONITOR_SCHEDULER, id);
 
-    return new Response(null, { status: 303, headers: { Location: `/monitor/${id}` } });
+    return new Response(null, { status: 303, headers: { Location: `/admin/monitor/${id}` } });
   }
 
   if (type === 'heartbeat') {
@@ -80,7 +81,7 @@ export const POST: APIRoute = async (ctx) => {
 
     const { id, token } = await createHeartbeatMonitor({
       created_by: user.id || null,
-      name, interval_seconds, cron_expression, grace_seconds,
+      name, interval_seconds, cron_expression, grace_seconds, is_public,
     });
     await logAudit({
       actor_user_id: user.id || null,
@@ -96,7 +97,7 @@ export const POST: APIRoute = async (ctx) => {
     // Show the token once. Pass via flash query — better than persisting it.
     return new Response(null, {
       status: 303,
-      headers: { Location: `/monitor/${id}?new_token=${encodeURIComponent(token)}` },
+      headers: { Location: `/admin/monitor/${id}?new_token=${encodeURIComponent(token)}` },
     });
   }
 

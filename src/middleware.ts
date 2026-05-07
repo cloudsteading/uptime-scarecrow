@@ -3,22 +3,19 @@ import { env } from 'cloudflare:workers';
 import { verifyAccessJwt } from '~/lib/access';
 import { upsertUser, isAllowedEmail } from '~/lib/db';
 
-// Truly public paths (no Access JWT required). The dashboard API at /api/v1/*
-// IS gated — form POSTs from a logged-in browser carry the Access cookie,
-// so they pass through fine. (Future bearer-token API can be added per-route.)
-const BYPASS_PREFIXES = ['/h/', '/status/', '/_image', '/favicon', '/robots.txt'];
-const PUBLIC_PATHS = new Set(['/about']);
-
-function isBypassed(path: string): boolean {
-  if (PUBLIC_PATHS.has(path)) return true;
-  return BYPASS_PREFIXES.some((p) => path.startsWith(p));
+// Auth boundary: only /admin/* (page routes + the /admin/api/v1/* JSON API)
+// requires Cloudflare Access. Everything else — public status page at /, public
+// monitor detail at /m/<id>, /about, /h/<token> heartbeat ingest, static
+// assets — passes through without auth and gets ctx.locals.user = null.
+function requiresAuth(path: string): boolean {
+  return path === '/admin' || path.startsWith('/admin/');
 }
 
 export const onRequest = defineMiddleware(async (ctx, next) => {
   const url = new URL(ctx.request.url);
   const path = url.pathname;
 
-  if (isBypassed(path)) {
+  if (!requiresAuth(path)) {
     ctx.locals.user = null;
     return next();
   }
@@ -36,7 +33,7 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
   if (!accessConfigured) {
     if (!devBypass) {
       console.error(
-        'Access not configured (ACCESS_TEAM_DOMAIN/ACCESS_AUD missing) and DEV_NO_AUTH not set — refusing request',
+        'Access not configured (ACCESS_TEAM_DOMAIN/ACCESS_AUD missing) and DEV_NO_AUTH not set — refusing /admin request',
       );
       return new Response(
         'Service misconfigured: Cloudflare Access is not set up. Set ACCESS_TEAM_DOMAIN and ACCESS_AUD secrets.',

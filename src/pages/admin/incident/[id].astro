@@ -3,7 +3,7 @@ import Layout from '~/layouts/Layout.astro';
 import { db } from '~/lib/db';
 
 const id = Number(Astro.params.id);
-if (!Number.isFinite(id)) return Astro.redirect('/incidents');
+if (!Number.isFinite(id)) return Astro.redirect('/admin/incidents');
 
 type IncidentDetail = {
   id: number;
@@ -80,7 +80,7 @@ try {
   // DB not available locally — redirect below.
 }
 
-if (!incident) return Astro.redirect('/incidents');
+if (!incident) return Astro.redirect('/admin/incidents');
 
 function fmtAbs(unix: number): string {
   return new Date(unix * 1000).toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
@@ -104,7 +104,7 @@ function statusPill(s: string) {
 ---
 <Layout title={`Incident #${incident.id} — ${incident.monitor_name} — Uptime Scarecrow`}>
   <div class="mx-auto max-w-5xl px-6 py-8">
-    <a href={`/monitor/${incident.monitor_id}`} class="text-ink-500 text-sm hover:text-ink-300">← {incident.monitor_name}</a>
+    <a href={`/admin/monitor/${incident.monitor_id}`} class="text-ink-500 text-sm hover:text-ink-300">← {incident.monitor_name}</a>
     <div class="mt-2 flex items-start justify-between flex-wrap gap-4">
       <div>
         <div class="flex items-center gap-3">
@@ -167,7 +167,7 @@ function statusPill(s: string) {
         <div class="rounded-lg border border-dashed border-ink-700 bg-ink-900/20 p-6 text-ink-500 text-sm">
           No notifications recorded for this incident.
           {' '}
-          <a href="/settings" class="text-link hover:underline">Add a channel</a> or toggle a user's alert email on at <a href="/settings" class="text-link hover:underline">/settings</a>.
+          <a href="/admin/settings" class="text-link hover:underline">Add a channel</a> or toggle a user's alert email on at <a href="/admin/settings" class="text-link hover:underline">/settings</a>.
         </div>
       ) : (
         <div class="rounded-lg border border-ink-800 overflow-hidden">

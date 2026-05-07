@@ -12,7 +12,7 @@ import {
 
 const idStr = Astro.params.id;
 const id = Number(idStr);
-if (!Number.isFinite(id)) return Astro.redirect('/');
+if (!Number.isFinite(id)) return Astro.redirect('/admin');
 
 type IncidentEntry = { id: number; opened_at: number; resolved_at: number | null; cause: string | null };
 type IncidentRange = { opened_at: number; resolved_at: number | null };
@@ -85,7 +85,7 @@ try {
   dbReady = false;
 }
 
-if (!monitor && dbReady) return Astro.redirect('/');
+if (!monitor && dbReady) return Astro.redirect('/admin');
 
 const m = monitor!;
 const httpCfg = m?.type === 'http' ? (m.parsed_config as HttpMonitorConfig) : null;
@@ -182,7 +182,7 @@ const recentSpan = Math.max(1, recentTEnd - recentTStart);
         </div>
       </div>
       <div class="flex items-center gap-2">
-        <a href={`/monitor/${m.id}/edit`} class="px-3 py-2 rounded-md border border-ink-700 hover:border-ink-500 text-ink-200 text-sm">Edit</a>
+        <a href={`/admin/monitor/${m.id}/edit`} class="px-3 py-2 rounded-md border border-ink-700 hover:border-ink-500 text-ink-200 text-sm">Edit</a>
         <form method="POST" action={`/api/v1/monitors/${m.id}/toggle`}>
           <button class="px-3 py-2 rounded-md border border-ink-700 hover:border-ink-500 text-ink-200 text-sm">{m.paused ? 'Resume' : 'Pause'}</button>
         </form>
@@ -253,7 +253,7 @@ const recentSpan = Math.max(1, recentTEnd - recentTStart);
 
     <div class="mt-8">
       <div class="flex items-center justify-between gap-2 mb-2">
-        <a href={`/monitor/${m.id}?week=${formatWeekParam(prev.year, prev.week)}`}
+        <a href={`/admin/monitor/${m.id}?week=${formatWeekParam(prev.year, prev.week)}`}
            class="px-3 py-1.5 rounded-md border border-ink-800 hover:border-ink-600 text-ink-300 text-sm">← {formatWeekParam(prev.year, prev.week)}</a>
         <div class="text-center">
           <div class="font-semibold text-ink-100">{formatWeekRangeLabel(weekStart)}</div>
@@ -261,7 +261,7 @@ const recentSpan = Math.max(1, recentTEnd - recentTStart);
         </div>
         {futureWeek
           ? <span class="px-3 py-1.5 rounded-md border border-ink-800 text-ink-700 text-sm cursor-not-allowed">future →</span>
-          : <a href={`/monitor/${m.id}?week=${formatWeekParam(nextWeek.year, nextWeek.week)}`}
+          : <a href={`/admin/monitor/${m.id}?week=${formatWeekParam(nextWeek.year, nextWeek.week)}`}
                class="px-3 py-1.5 rounded-md border border-ink-800 hover:border-ink-600 text-ink-300 text-sm">{formatWeekParam(nextWeek.year, nextWeek.week)} →</a>}
       </div>
       {!denseAvailable && (
@@ -320,7 +320,7 @@ const recentSpan = Math.max(1, recentTEnd - recentTStart);
           <div class="px-4 py-6 text-center text-ink-500 text-sm">No incidents yet.</div>
         )}
         {[...openIncidents, ...pastIncidents].map((i) => (
-          <a href={`/incident/${i.id}`} class="px-4 py-3 flex items-center justify-between hover:bg-ink-900/40 transition-colors">
+          <a href={`/admin/incident/${i.id}`} class="px-4 py-3 flex items-center justify-between hover:bg-ink-900/40 transition-colors">
             <div>
               <div class="text-sm text-ink-100">{i.cause ?? 'Failure'}</div>
               <div class="text-xs text-ink-500 flex flex-wrap gap-x-3 gap-y-0.5 mt-1">

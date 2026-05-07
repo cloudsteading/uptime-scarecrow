@@ -18,5 +18,5 @@ export const POST: APIRoute = async (ctx) => {
     target: `monitor:${id}`,
     ip: ctx.clientAddress,
   });
-  return new Response(null, { status: 303, headers: { Location: `/monitor/${id}` } });
+  return new Response(null, { status: 303, headers: { Location: `/admin/monitor/${id}` } });
 };

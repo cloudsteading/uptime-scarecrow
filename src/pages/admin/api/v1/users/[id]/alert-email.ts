@@ -21,6 +21,6 @@ export const POST: APIRoute = async (ctx) => {
 
   return new Response(null, {
     status: 303,
-    headers: { Location: `/settings?flash=${encodeURIComponent('Alert preference saved')}` },
+    headers: { Location: `/admin/settings?flash=${encodeURIComponent('Alert preference saved')}` },
   });
 };

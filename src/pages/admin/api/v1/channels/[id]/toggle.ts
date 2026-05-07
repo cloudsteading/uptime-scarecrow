@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { deleteChannel } from '~/lib/channels';
+import { getChannel, setChannelEnabled } from '~/lib/channels';
 import { logAudit } from '~/lib/db';
 
 export const POST: APIRoute = async (ctx) => {
@@ -7,20 +7,15 @@ export const POST: APIRoute = async (ctx) => {
   if (!me) return new Response('Unauthorized', { status: 401 });
   const id = Number(ctx.params.id);
   if (!Number.isFinite(id)) return new Response('Bad id', { status: 400 });
-
-  const ok = await deleteChannel(id);
-  if (!ok) return new Response('Not found', { status: 404 });
-
+  const ch = await getChannel(id);
+  if (!ch) return new Response('Not found', { status: 404 });
+  await setChannelEnabled(id, !ch.enabled);
   await logAudit({
     actor_user_id: me.id || null,
     actor_email: me.email,
-    action: 'channel.delete',
+    action: ch.enabled ? 'channel.disable' : 'channel.enable',
     target: `channel:${id}`,
     ip: ctx.clientAddress,
   });
-
-  return new Response(null, {
-    status: 303,
-    headers: { Location: `/settings?flash=${encodeURIComponent('Channel deleted')}` },
-  });
+  return new Response(null, { status: 303, headers: { Location: '/admin/settings' } });
 };

@@ -6,8 +6,10 @@ Self-hosted uptime monitoring built entirely on Cloudflare, by Cloudsteading. Wa
 
 Two Workers, deployed independently:
 
-- **`uptime-scarecrow-app`** — Astro (server output) on Workers. Serves the marketing site, dashboard, public status pages. Auth via Cloudflare Access.
+- **`uptime-scarecrow-app`** — Astro (server output) on Workers. Public status page at `/` and `/m/<id>` (filtered by `monitor.is_public`); Access-gated admin under `/admin/*`; heartbeat ingest at `/h/<token>`.
 - **`uptime-scarecrow-scheduler`** — cron Worker (`* * * * *`), queue consumer, hosts the Durable Objects. Owns all check execution and notification fan-out.
+
+Auth boundary: middleware (`src/middleware.ts`) gates only `/admin/*`. Everything else passes through with `ctx.locals.user = null`.
 
 Bindings (see `wrangler.jsonc` / `wrangler.scheduler.jsonc`):
 

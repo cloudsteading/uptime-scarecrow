@@ -12,8 +12,9 @@ Stands watch over your URLs and cron jobs and squawks when something's wrong. Tw
 - **Heartbeat monitors** — exposes a per-monitor URL (`/h/<token>`); your job pings it on a schedule and the monitor flips DOWN if it goes silent past a grace period.
 - **Incidents** — opens an incident when a monitor flips DOWN, closes it on recovery, optionally writes an AI-generated summary via Workers AI.
 - **Notifications** — fans out via email (Cloudflare Email Service), Slack, Discord, and signed JSON webhooks. PagerDuty and Telegram adapters are stubbed for v0.2.
-- **Public status pages** — read-only views per-monitor with the recent_check ring buffer rendered as a chart.
-- **Auth** — gated by Cloudflare Access; no app-side login UI. Allowlist by email.
+- **Public status page** at `/` — standard statuspage layout (overall banner, per-monitor uptime sparkline, recent incidents). Each monitor has an `is_public` flag; only flagged monitors appear publicly.
+- **Admin dashboard** under `/admin/*` — gated by Cloudflare Access. Operator-only views, monitor CRUD, channel CRUD, settings, audit log. No app-side login UI; Access is the login.
+- **Auth model** — Access protects only `/admin/*` (and `/admin/api/v1/*`). Everything else (public status page, public monitor detail at `/m/<id>`, `/about`, `/h/<token>`) is unauthenticated by design.
 
 ---
 
@@ -23,10 +24,22 @@ Two Workers in one repo:
 
 | Worker | Config | Role |
 |---|---|---|
-| `uptime-scarecrow-app` | `wrangler.jsonc` | Astro server output — dashboard, public status pages, JSON API, heartbeat ingest. |
+| `uptime-scarecrow-app` | `wrangler.jsonc` | Astro server output — public status page (`/`, `/m/<id>`), Access-gated admin dashboard (`/admin/*`), JSON API (`/admin/api/v1/*`), heartbeat ingest (`/h/<token>`). |
 | `uptime-scarecrow-scheduler` | `wrangler.scheduler.jsonc` | Per-minute cron, daily rollup/prune crons, queue consumer for notifications, hosts Durable Object classes (`MonitorScheduler`, `HeartbeatTracker`). |
 
 The app talks to DOs that live *inside* the scheduler Worker (cross-Worker DO bindings via `script_name`). Both Workers share the same D1, KV, and Queue.
+
+### Routes at a glance
+
+| Path | Auth | Purpose |
+|---|---|---|
+| `/` | public | Status page — public monitors, banner, recent incidents |
+| `/m/<id>` | public | Public monitor detail (404 if `is_public = 0`) |
+| `/about` | public | Project info |
+| `/h/<token>` | public, rate-limited | Heartbeat ingest |
+| `/admin` | Access | Admin dashboard (all monitors) |
+| `/admin/incidents`, `/admin/settings`, `/admin/monitor/*`, `/admin/incident/*` | Access | Operator views |
+| `/admin/api/v1/*` | Access | JSON / form API |
 
 ```
 HTTP / heartbeat
@@ -134,11 +147,11 @@ Update `wrangler.jsonc` and `wrangler.scheduler.jsonc`:
 
 ### 2. Configure Cloudflare Access
 
-In the [Zero Trust dashboard](https://one.dash.cloudflare.com/):
+Access protects only `/admin/*` — the public status page at `/` stays open. In the [Zero Trust dashboard](https://one.dash.cloudflare.com/):
 
-1. **Settings → Custom Pages → Identity** — set up at least one identity provider (Google, GitHub, one-time PIN, etc.).
+1. **Settings → Authentication** — set up at least one identity provider (Google, GitHub, one-time PIN, etc.).
 2. **Access → Applications → Add an application → Self-hosted.**
-3. Application domain: the hostname you'll deploy the app to (e.g. `uptime.example.com`).
+3. Application domain: the hostname you'll deploy the app to **with the `/admin` path** (e.g. `uptime.example.com/admin`). This way Access only intercepts admin traffic; the public status page is untouched.
 4. Add an Access Policy that allows your email(s).
 5. After saving, open the application's settings and copy:
    - **AUD tag** (the long hex string) → set as `ACCESS_AUD` secret
@@ -264,7 +277,7 @@ Per-monitor checks are driven by **Durable Object alarms**, not by these crons. 
 
 A summary of the security boundaries — see `src/middleware.ts`, `src/lib/access.ts`, and `src/lib/checks.ts` for the implementation.
 
-- **Auth.** All non-public routes require a valid Cloudflare Access JWT (verified via JWKS, RS256). Email allowlist enforced after JWT verification. `/h/<token>`, `/status/*`, `/about`, `/_image`, `/favicon`, `/robots.txt` are public by design.
+- **Auth.** Cloudflare Access JWT (verified via JWKS, RS256) is required only for `/admin` and `/admin/*` (which covers `/admin/api/v1/*`). Email allowlist enforced after JWT verification. The public status page (`/`, `/m/<id>`), `/about`, and `/h/<token>` are public by design — anyone can hit them, but the public monitor detail returns 404 unless the monitor's `is_public` column is 1.
 - **SSRF.** Outbound check fetches block `localhost`, `127.0.0.0/8`, `::1`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16` (incl. cloud metadata `169.254.169.254`), `100.64.0.0/10`, fc00::/7, and DoH-resolve before fetch with redirect re-validation.
 - **Heartbeat tokens.** 32 bytes from `crypto.getRandomValues`, stored as SHA-256 hash. Lookup is constant-time hash-compare. Per-token rate limit at 30 req/min.
 - **Webhook signatures.** Optional HMAC-SHA256 over `<unix-ts>.<body>`, sent as `X-Scarecrow-Signature: t=<unix>,v1=<hex>`. Receivers must verify timestamp freshness to prevent replay.

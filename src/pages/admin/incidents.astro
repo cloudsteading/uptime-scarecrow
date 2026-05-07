@@ -84,7 +84,7 @@ function durationFor(i: IncidentRow): string {
               {open.map((i) => (
                 <tr class="hover:bg-down-soft/20 transition-colors group">
                   <td class="px-4 py-3 relative">
-                    <a href={`/incident/${i.id}`} class="absolute inset-0 z-10" aria-label={`Incident ${i.id}`}></a>
+                    <a href={`/admin/incident/${i.id}`} class="absolute inset-0 z-10" aria-label={`Incident ${i.id}`}></a>
                     <span class="font-medium text-ink-100 group-hover:text-ink-50">{i.monitor_name}</span>
                     <span class="ml-2 px-1.5 py-0.5 rounded text-xs bg-ink-800 text-ink-400">{i.monitor_type}</span>
                   </td>
@@ -121,7 +121,7 @@ function durationFor(i: IncidentRow): string {
               {past.map((i) => (
                 <tr class="hover:bg-ink-900/40 transition-colors group">
                   <td class="px-4 py-3 relative">
-                    <a href={`/incident/${i.id}`} class="absolute inset-0 z-10" aria-label={`Incident ${i.id}`}></a>
+                    <a href={`/admin/incident/${i.id}`} class="absolute inset-0 z-10" aria-label={`Incident ${i.id}`}></a>
                     <span class="font-medium text-ink-200 group-hover:text-ink-50">{i.monitor_name}</span>
                     <span class="ml-2 px-1.5 py-0.5 rounded text-xs bg-ink-800 text-ink-400">{i.monitor_type}</span>
                   </td>

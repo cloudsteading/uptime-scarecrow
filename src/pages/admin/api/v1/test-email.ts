@@ -44,7 +44,7 @@ export const POST: APIRoute = async (ctx) => {
   return new Response(null, {
     status: 303,
     headers: {
-      Location: `/settings?flash=${encodeURIComponent(flash)}&flash_kind=${kind}`,
+      Location: `/admin/settings?flash=${encodeURIComponent(flash)}&flash_kind=${kind}`,
     },
   });
 };

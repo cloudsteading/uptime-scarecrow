@@ -46,6 +46,7 @@ export type MonitorRow = {
   interval_seconds: number;
   grace_seconds: number;
   paused: number;
+  is_public: number;
   failure_threshold: number;
   recovery_threshold: number;
   created_at: number;
