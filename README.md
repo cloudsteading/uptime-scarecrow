@@ -200,7 +200,23 @@ npm run db:migrate:remote
 npm run deploy
 ```
 
-This deploys the scheduler first (so its DO classes exist before the app tries to bind to them), then the app. Both go live behind your custom domain once the Workers route is set in the dashboard.
+This deploys the scheduler first (so its DO classes exist before the app tries to bind to them), then the app. By default the app publishes to `<name>.<your-subdomain>.workers.dev`.
+
+### 7. Custom domain (optional)
+
+Add your own domain (e.g. `uptime.example.com`) one of two ways:
+
+**Via dashboard (recommended for ease)** — Workers & Pages → `uptime-scarecrow-app` → Settings → Domains & Routes → Add → Custom Domain. The hostname has to be a Cloudflare zone in the same account; CF auto-creates the DNS record.
+
+**Via wrangler config** — uncomment + edit the `routes` block in `wrangler.jsonc`:
+
+```jsonc
+"routes": [
+  { "pattern": "uptime.example.com", "custom_domain": true }
+]
+```
+
+…then redeploy. Note: with `routes` set in config, wrangler manages the binding declaratively — removing it later removes the domain on next deploy. Dashboard-added domains are independent of wrangler config.
 
 ### 7. Smoke-check
 

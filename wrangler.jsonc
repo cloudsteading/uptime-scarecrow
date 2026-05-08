@@ -5,6 +5,17 @@
   "compatibility_date": "2026-04-01",
   "compatibility_flags": ["nodejs_compat"],
 
+  // The default deploy publishes to <name>.<your-subdomain>.workers.dev.
+  // Add a custom domain in two ways:
+  //   1. Cloudflare dashboard → Workers & Pages → this worker →
+  //      Settings → Domains & Routes → Add → Custom Domain.
+  //      Persists across deploys; doesn't need to be committed here.
+  //   2. Or uncomment + edit the block below and redeploy:
+  // "routes": [
+  //   { "pattern": "uptime.example.com", "custom_domain": true }
+  // ],
+  "workers_dev": true,
+
   "d1_databases": [
     {
       "binding": "DB",
