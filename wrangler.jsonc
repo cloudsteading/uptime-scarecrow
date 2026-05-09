@@ -1,7 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "uptime-scarecrow-app",
-  "account_id": "568ac4421f76a5632827450f5617a9e8",
   "compatibility_date": "2026-04-01",
   "compatibility_flags": ["nodejs_compat"],
 
@@ -16,17 +15,20 @@
   // ],
   "workers_dev": true,
 
+  // Resources are auto-provisioned on first deploy when an `id` /
+  // `database_id` is omitted. Wrangler matches existing resources by name
+  // first; if none exists it creates one. After the first deploy you can
+  // optionally paste the resulting ID back here for stability.
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "uptime-scarecrow-db",
-      "database_id": "202932c5-1fd8-438f-b7ec-6f73e3b3c547",
       "migrations_dir": "./db/migrations"
     }
   ],
 
   "kv_namespaces": [
-    { "binding": "CACHE", "id": "d6aa1b79ba70472b845f37f14ff7ddb4" }
+    { "binding": "CACHE" }
   ],
 
   "ai": { "binding": "AI" },
@@ -65,6 +67,9 @@
     "APP_VERSION": "0.1.0"
   },
 
+  // Per-token rate limit on /h/<token> heartbeat ingest. namespace_id is
+  // an arbitrary integer scoped to this worker — pick anything unique
+  // across your unsafe bindings; nothing references it externally.
   "unsafe": {
     "bindings": [
       {

@@ -9,6 +9,21 @@
     "type": "git",
     "url": "git+https://github.com/cloudsteading/uptime-scarecrow.git"
   },
+  "bugs": {
+    "url": "https://github.com/cloudsteading/uptime-scarecrow/issues"
+  },
+  "keywords": [
+    "uptime",
+    "monitoring",
+    "status-page",
+    "cloudflare",
+    "cloudflare-workers",
+    "durable-objects",
+    "d1",
+    "self-hosted",
+    "heartbeat",
+    "incident-management"
+  ],
   "license": "MIT",
   "engines": {
     "node": ">=22.12.0"

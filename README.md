@@ -4,17 +4,56 @@ Self-hosted uptime monitoring built entirely on Cloudflare — by [Cloudsteading
 
 Stands watch over your URLs and cron jobs and squawks when something's wrong. Two Workers, one D1 database, no third parties. Deploys to your own Cloudflare account in a few minutes; expect to pay $2–5/month at indie scale.
 
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudsteading/uptime-scarecrow)
+
+> The Deploy button forks this repo into your GitHub, connects it to your Cloudflare account, and runs `npm run deploy`. D1, KV, and DO resources auto-provision on first run. Queues need to be created once before the first deploy — see [§ Quick install](#quick-install) for the full step list.
+
 ---
 
-## What it does
+## Features
 
-- **HTTP monitors** — fetches a URL on a schedule (1m, 5m, 15m, hourly, or any cron) and asserts on status code, body content, response time, and TLS expiry.
-- **Heartbeat monitors** — exposes a per-monitor URL (`/h/<token>`); your job pings it on a schedule and the monitor flips DOWN if it goes silent past a grace period.
-- **Incidents** — opens an incident when a monitor flips DOWN, closes it on recovery, optionally writes an AI-generated summary via Workers AI.
-- **Notifications** — fans out via email (Cloudflare Email Service), Slack, Discord, and signed JSON webhooks. PagerDuty and Telegram adapters are stubbed for v0.2.
-- **Public status page** at `/` — standard statuspage layout (overall banner, per-monitor uptime sparkline, recent incidents). Each monitor has an `is_public` flag; only flagged monitors appear publicly.
-- **Admin dashboard** under `/admin/*` — gated by Cloudflare Access. Operator-only views, monitor CRUD, channel CRUD, settings, audit log. No app-side login UI; Access is the login.
-- **Auth model** — Access protects only `/admin/*` (and `/admin/api/v1/*`). Everything else (public status page, public monitor detail at `/m/<id>`, `/h/<token>`) is unauthenticated by design.
+- **HTTP monitors** — schedule (1m / 5m / 15m / hourly / any cron); assert on status code, body keyword, response time, and TLS expiry. Per-token rate-limited heartbeat ingest at `/h/<token>`.
+- **Heartbeat monitors** — *your* job pings Uptime Scarecrow; alerts when the ping goes silent past a configurable grace window.
+- **Incidents** — auto-opened on DOWN, auto-closed on recovery, optionally summarised by Workers AI.
+- **Notifications** — Cloudflare Email Service, Slack, Discord, signed JSON webhooks. PagerDuty + Telegram are stubbed for v0.2.
+- **Public status page** at `/` — standard statuspage UX. Per-monitor `is_public` flag; private by default.
+- **Admin** under `/admin/*` — Cloudflare Access in front, no app-side login UI.
+
+---
+
+## Quick install
+
+You'll need a Cloudflare account on the **Workers Paid** plan ($5/mo — required for Durable Objects + Queues), Node ≥ 22.12, and `wrangler` authenticated (`npx wrangler login`).
+
+```bash
+# 1. Clone and install
+git clone https://github.com/cloudsteading/uptime-scarecrow.git
+cd uptime-scarecrow
+nvm use && npm install
+
+# 2. Create the two queues (these are the only resources wrangler can't auto-provision yet)
+npx wrangler queues create uptime-scarecrow-notifications
+npx wrangler queues create uptime-scarecrow-notifications-dlq
+
+# 3. First deploy. wrangler auto-creates D1, KV, and the DO classes on demand.
+npm run deploy
+
+# 4. Apply schema to the freshly-created remote D1
+npm run db:migrate:remote
+```
+
+The app is now reachable at `https://uptime-scarecrow-app.<your-subdomain>.workers.dev`. Public status page works immediately; `/admin` returns 503 until you set up Cloudflare Access in step 5.
+
+```bash
+# 5. Set required secrets — see "Production setup" below for how to obtain each value
+npx wrangler secret put ACCESS_TEAM_DOMAIN     # e.g. your-team.cloudflareaccess.com
+npx wrangler secret put ACCESS_AUD             # 64-char hex from your Access app
+npx wrangler secret put EMAIL_FROM             # e.g. alerts@your-domain.com
+```
+
+After that, `https://uptime-scarecrow-app.<your-subdomain>.workers.dev/admin` redirects through your IdP and into the dashboard.
+
+For a custom domain, see [§ Custom domain](#custom-domain) below.
 
 ---
 
@@ -77,138 +116,82 @@ There is *no* R2, no Analytics Engine, no Postgres, no Redis. Timeseries are D1-
 
 ---
 
-## Prerequisites
-
-- A [Cloudflare account](https://dash.cloudflare.com) with Workers, D1, KV, Queues, Durable Objects, Workers AI, and Email Routing enabled (most are on the free plan; Queues + DOs require the $5/mo Workers Paid plan).
-- A custom domain on Cloudflare (or a `*.workers.dev` subdomain — but Email Routing requires a real zone).
-- A [Zero Trust](https://one.dash.cloudflare.com/) account for Cloudflare Access (free tier supports 50 users).
-- Node.js ≥ 22.12 (matches `engines` in `package.json`; the version in `.nvmrc`).
-- `wrangler` CLI authenticated against your account: `npx wrangler login`.
-
----
-
-## Quickstart — local development
+## Local development
 
 ```bash
-# 1. Clone & install
 git clone https://github.com/cloudsteading/uptime-scarecrow.git
 cd uptime-scarecrow
-nvm use         # honours .nvmrc
-npm install
+nvm use && npm install
 
-# 2. Enable the local auth bypass (gitignored, never committed)
-cat > .dev.vars <<'EOF'
-DEV_NO_AUTH=1
-EOF
+# Local auth bypass — gitignored, never committed.
+cp .dev.vars.example .dev.vars      # contains DEV_NO_AUTH=1
 
-# 3. Apply migrations to the local D1 (creates ./.wrangler/state)
+# Local D1 schema
 npm run db:migrate:local
 
-# 4. Run both Workers concurrently
+# App + scheduler concurrently. Auto-arms DO alarms on startup.
 npm run dev
 ```
 
-This starts:
+- **App:** http://localhost:4322  (Astro auto-falls-through if 4322 is taken; watch the `[APP]` line)
+- **Scheduler:** http://localhost:8788  (cron tickle: `/__scheduled?cron=...`)
 
-- **App / dashboard:** http://localhost:4322 (Astro auto-falls-through if 4322 is taken — watch the `[APP]` line for the actual port)
-- **Scheduler:** http://localhost:8788 (cron tickle endpoint at `/__scheduled?cron=...`)
-
-Browse to the app and you should land on the empty Monitors dashboard. Add an HTTP monitor and within ~1 second its DO will arm an alarm and start checking. See [`docs/dev.md`](docs/dev.md) for the full local workflow, including manual cron tickling for the daily rollup/prune.
+See [`docs/dev.md`](docs/dev.md) for the full local workflow.
 
 ---
 
-## Production deployment
+## Production setup
 
-The repo currently ships with the maintainer's account and resource IDs in the wrangler configs. **Replace them with your own** before deploying — otherwise wrangler will refuse, or worse, target the wrong resources.
+The Quick install above gets the workers deployed and resources auto-provisioned. The remaining work is connecting Cloudflare Access (so `/admin` works) and Email Routing (so alerts deliver). Both are dashboard tasks.
 
-### 1. Provision Cloudflare resources
+### Cloudflare Access (gates `/admin`)
 
-```bash
-# D1
-npx wrangler d1 create uptime-scarecrow-db
-# → copy the database_id into both wrangler.jsonc and wrangler.scheduler.jsonc
+Access only intercepts `/admin/*` — public status page stays open. In the [Zero Trust dashboard](https://one.dash.cloudflare.com/):
 
-# KV
-npx wrangler kv:namespace create CACHE
-# → copy the id into both wrangler configs
-
-# Queue
-npx wrangler queues create uptime-scarecrow-notifications
-npx wrangler queues create uptime-scarecrow-notifications-dlq
-```
-
-Update `wrangler.jsonc` and `wrangler.scheduler.jsonc`:
-
-- `account_id` — your Cloudflare account ID (or remove and set `CLOUDFLARE_ACCOUNT_ID` in your shell)
-- `d1_databases[0].database_id` — from step 1
-- `kv_namespaces[0].id` — from step 1
-- `unsafe.bindings[0].namespace_id` — pick any unique number per worker for the rate limiter (e.g. `1001`)
-
-### 2. Configure Cloudflare Access
-
-Access protects only `/admin/*` — the public status page at `/` stays open. In the [Zero Trust dashboard](https://one.dash.cloudflare.com/):
-
-1. **Settings → Authentication** — set up at least one identity provider (Google, GitHub, one-time PIN, etc.).
+1. **Settings → Authentication → Login methods → Add new** — pick at least one IdP. Google or GitHub OAuth are most reliable; one-time PIN works but depends on email deliverability.
 2. **Access → Applications → Add an application → Self-hosted.**
-3. Application domain: the hostname you'll deploy the app to **with the `/admin` path** (e.g. `uptime.example.com/admin`). This way Access only intercepts admin traffic; the public status page is untouched.
-4. Add an Access Policy that allows your email(s).
-5. After saving, open the application's settings and copy:
-   - **AUD tag** (the long hex string) → set as `ACCESS_AUD` secret
-   - **Team domain** (e.g. `your-team.cloudflareaccess.com`) → set as `ACCESS_TEAM_DOMAIN` secret
+3. **Application domain** — your worker's hostname (the workers.dev URL or your custom domain) **with the `Path` set to `admin`**. This is critical: it scopes Access to admin only.
+4. **Identity providers** — check the IdP from step 1.
+5. **Add a policy** — `Allow` action, `Include → Emails →` your operator emails.
+6. Save. On the app's Overview tab, copy:
+   - **AUD tag** → `npx wrangler secret put ACCESS_AUD`
+   - **Team domain** (e.g. `your-team.cloudflareaccess.com`) → `npx wrangler secret put ACCESS_TEAM_DOMAIN`
 
-### 3. Configure Email Routing
+The middleware fails closed if either secret is missing — `/admin` returns 503 rather than silently granting access.
 
-In the Cloudflare dashboard for your zone:
+### Email Routing (powers notifications)
 
-1. **Email → Email Routing → Get started** and verify your domain.
-2. **Email Routing → Email Workers → Create a destination address** for the from-address you want alerts to use (e.g. `alerts@yourdomain.com`). Verify it.
-3. The `SEND_EMAIL` binding in `wrangler.jsonc` is `unrestricted` — add a `destination_addresses` array if you want to constrain who Scarecrow can email.
+The `send_email` binding requires the from-domain to be on a Cloudflare zone with Email Routing enabled. To avoid colliding with your existing mail (e.g. Google Workspace on the apex), use a dedicated subdomain like `m.your-domain.com`.
 
-### 4. Set Worker secrets
-
-For both Workers, set required secrets via wrangler:
-
-```bash
-# These two are required — without them, the app refuses to serve any authed route.
-npx wrangler secret put ACCESS_TEAM_DOMAIN          # e.g. your-team.cloudflareaccess.com
-npx wrangler secret put ACCESS_AUD                  # the AUD tag from Access
-
-# Email
-npx wrangler secret put EMAIL_FROM                  # e.g. alerts@yourdomain.com
-
-# Optional
-npx wrangler secret put ALLOWED_EMAILS              # comma-separated allowlist; empty = anyone Access lets through
-npx wrangler secret put BOOTSTRAP_ADMIN_EMAILS      # comma-separated — these emails get is_admin=1 on first login
-npx wrangler secret put APP_BASE_URL                # e.g. https://uptime.example.com — used in alert email links
-
-# Repeat for the scheduler worker
-npx wrangler secret put EMAIL_FROM -c wrangler.scheduler.jsonc
-# … etc, for any secret the scheduler needs (it sends emails too)
-```
-
-`DEV_NO_AUTH` must NEVER be set in production. The middleware fails closed when `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are missing unless `DEV_NO_AUTH=1`, so a forgotten Access config returns 503 rather than silently granting admin.
-
-### 5. Apply migrations to the remote D1
+1. Cloudflare dashboard → your zone (or subdomain zone) → **Email → Email Routing → Get Started.**
+2. CF auto-adds MX + SPF + DKIM records. Click **Add records and enable**.
+3. Add a destination address (any real inbox you control) and verify it via the email link.
+4. Pick a from-address (e.g. `alerts@m.your-domain.com`) — it doesn't need to be a real inbox; the binding just needs the *zone* enabled.
 
 ```bash
-npm run db:migrate:remote
+npx wrangler secret put EMAIL_FROM                              # e.g. alerts@m.your-domain.com
+npx wrangler secret put EMAIL_FROM -c wrangler.scheduler.jsonc  # the queue consumer also sends mail
 ```
 
-### 6. Deploy
+Test from the dashboard: `/admin/settings → Send test email to me`.
+
+### Optional secrets
 
 ```bash
-npm run deploy
+npx wrangler secret put APP_BASE_URL              # e.g. https://uptime.your-domain.com — used in alert email links
+npx wrangler secret put BOOTSTRAP_ADMIN_EMAILS    # comma-separated — these get is_admin=1 on first login
+npx wrangler secret put ALLOWED_EMAILS            # comma-separated allowlist; defense-in-depth on top of Access
 ```
 
-This deploys the scheduler first (so its DO classes exist before the app tries to bind to them), then the app. By default the app publishes to `<name>.<your-subdomain>.workers.dev`.
+> `DEV_NO_AUTH` must NEVER be set in production. The middleware fails closed when `ACCESS_TEAM_DOMAIN`/`ACCESS_AUD` are missing unless `DEV_NO_AUTH=1`, so a forgotten Access config returns 503 rather than silently granting admin.
 
-### 7. Custom domain (optional)
+### Custom domain
 
-Add your own domain (e.g. `uptime.example.com`) one of two ways:
+Add a domain like `uptime.your-domain.com` either way:
 
-**Via dashboard (recommended for ease)** — Workers & Pages → `uptime-scarecrow-app` → Settings → Domains & Routes → Add → Custom Domain. The hostname has to be a Cloudflare zone in the same account; CF auto-creates the DNS record.
+**Dashboard** — Workers & Pages → `uptime-scarecrow-app` → Settings → Domains & Routes → Add → Custom Domain. Hostname must be a CF zone in the same account; DNS is auto-created. Persists across deploys without committing anything.
 
-**Via wrangler config** — uncomment + edit the `routes` block in `wrangler.jsonc`:
+**Wrangler config** — uncomment + edit the `routes` block in `wrangler.jsonc`:
 
 ```jsonc
 "routes": [
@@ -216,14 +199,14 @@ Add your own domain (e.g. `uptime.example.com`) one of two ways:
 ]
 ```
 
-…then redeploy. Note: with `routes` set in config, wrangler manages the binding declaratively — removing it later removes the domain on next deploy. Dashboard-added domains are independent of wrangler config.
+…then redeploy. Note: with `routes` in config, wrangler manages the binding declaratively — removing it later detaches the domain on next deploy. Dashboard-added domains are independent.
 
-### 7. Smoke-check
+### Smoke-check
 
-- Visit your deployed URL — you should hit the Cloudflare Access sign-in flow, then land on the empty Monitors dashboard.
-- Add an HTTP monitor pointed at a known-good URL.
-- Wait a minute. The dashboard should show a green check.
-- **Settings → Send test email** to confirm `SEND_EMAIL` is wired correctly.
+- Visit `/` — you should see "No public monitors" on the public status page.
+- Visit `/admin` — should redirect through your IdP and into an empty Monitors dashboard.
+- Add an HTTP monitor pointed at a known-good URL. Wait ~5s — the bar starts filling.
+- **Settings → Send test email to me** — confirms `SEND_EMAIL` wiring end-to-end.
 
 ---
 
@@ -340,10 +323,20 @@ For the local-dev auth bypass: see the `DEV_NO_AUTH` note above. The middleware 
 
 ## License
 
-MIT — see `LICENSE` (TODO: add file).
+[MIT](./LICENSE).
 
 ---
 
 ## Contributing
 
-This is an early-stage, single-tenant project — Cloudsteading uses it for our own monitoring. Issues and PRs welcome at [github.com/cloudsteading/uptime-scarecrow](https://github.com/cloudsteading/uptime-scarecrow). For substantial changes, open an issue first to discuss scope.
+This is an early-stage, single-tenant project — Cloudsteading uses it for our own monitoring, and we're sharing it for anyone else to deploy on their own Cloudflare account. Issues and PRs welcome at [github.com/cloudsteading/uptime-scarecrow](https://github.com/cloudsteading/uptime-scarecrow).
+
+A few notes for contributors:
+
+- **Branch from `main`**, ship small focused PRs. Substantial changes should land an issue first to confirm scope.
+- **Local dev:** see [`docs/dev.md`](docs/dev.md). One command (`npm run dev`) runs both workers, auto-arms DO alarms, and gives you a `/admin` you can browse via the `DEV_NO_AUTH=1` bypass.
+- **Schema changes** go in `db/migrations/NNNN_<description>.sql` (sequential numbering). Run `npm run db:migrate:local` to apply.
+- **Type-check before pushing:** `npx tsc --noEmit`. We don't have a full test suite yet — `scripts/smoke-test.sh` is the closest thing.
+- **`docs/specs/`** is where v0.2 design notes go before they become migrations / code.
+
+Roughly what's on the v0.2 list (file an issue if you want to tackle one): PagerDuty + Telegram channel adapters, comments on incidents, configurable header navigation, daily check_daily fallback for chart data older than 8 days, status-page subscriber emails, monitor groups.

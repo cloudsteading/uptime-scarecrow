@@ -1,0 +1,27 @@
+# Local development env vars. Copy to `.dev.vars` (gitignored) and uncomment
+# what you need. Read by wrangler dev / astro dev's platformProxy on startup.
+
+# REQUIRED for local browsing without Cloudflare Access infrastructure.
+# Without this (and without Access env vars set) the middleware fails closed
+# with a 503 on any /admin route. NEVER set this in a deployed environment —
+# it grants admin to every visitor.
+DEV_NO_AUTH=1
+
+# OPTIONAL — not needed for local dev. Set in production via:
+#   npx wrangler secret put <NAME>
+# Listed here as a reference / shape reminder.
+
+# Cloudflare Access (production only)
+# ACCESS_TEAM_DOMAIN=your-team.cloudflareaccess.com
+# ACCESS_AUD=<64-char hex from the Access application overview>
+
+# Email (production only — domain needs Email Routing on the Cloudflare zone)
+# EMAIL_FROM=alerts@your-domain.com
+# APP_BASE_URL=https://uptime.your-domain.com
+
+# Email allowlist after Access (defense-in-depth — Access already restricts).
+# Comma-separated. If unset, anyone Access lets through can sign in.
+# ALLOWED_EMAILS=you@your-domain.com,other@your-domain.com
+
+# Emails matching this list become is_admin=1 on first login. Comma-separated.
+# BOOTSTRAP_ADMIN_EMAILS=you@your-domain.com

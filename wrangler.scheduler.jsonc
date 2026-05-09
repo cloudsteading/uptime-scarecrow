@@ -1,22 +1,22 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "uptime-scarecrow-scheduler",
-  "account_id": "568ac4421f76a5632827450f5617a9e8",
   "main": "src/scheduler/index.ts",
   "compatibility_date": "2026-04-01",
   "compatibility_flags": ["nodejs_compat"],
 
+  // Both workers bind to the same D1 + KV. Names match wrangler.jsonc;
+  // wrangler matches by name (or auto-provisions on first deploy).
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "uptime-scarecrow-db",
-      "database_id": "202932c5-1fd8-438f-b7ec-6f73e3b3c547",
       "migrations_dir": "./db/migrations"
     }
   ],
 
   "kv_namespaces": [
-    { "binding": "CACHE", "id": "d6aa1b79ba70472b845f37f14ff7ddb4" }
+    { "binding": "CACHE" }
   ],
 
   "send_email": [
